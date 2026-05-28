@@ -23,3 +23,7 @@ Reviewed against the Software Engineering assignment requirements and the curren
 * The PDL and test cases still target 报修申请受理模块.
 * Regenerated Word outputs contain 8 embedded images and remain valid OpenXML packages.
 
+## Final Polish
+
+* 图 1：relationship lines were rerouted as cleaner orthogonal/short line segments; labels and multiplicities were moved away from class-box borders and text compartments.
+* 图 3：long diagonal DFD flows were rerouted as orthogonal paths; labels were manually placed away from process/data-store frames and arrowheads.

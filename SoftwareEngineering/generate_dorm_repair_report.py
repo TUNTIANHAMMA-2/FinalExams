@@ -236,6 +236,57 @@ def arrow(
         draw.text((mx, my), text, font=fnt, fill=color)
 
 
+def label_text(
+    draw: ImageDraw.ImageDraw,
+    pos: tuple[int, int],
+    text: str,
+    color: str = "#344054",
+    fnt: ImageFont.FreeTypeFont = F_XS,
+) -> None:
+    x, y = pos
+    w, h = text_size(draw, text, fnt)
+    draw.rounded_rectangle((x - 7, y - 4, x + w + 7, y + h + 4), radius=5, fill="white")
+    draw.text((x, y), text, font=fnt, fill=color)
+
+
+def arrow_head(draw: ImageDraw.ImageDraw, start: tuple[int, int], end: tuple[int, int], color: str = "#344054") -> None:
+    angle = math.atan2(end[1] - start[1], end[0] - start[0])
+    length = 16
+    spread = math.pi / 7
+    p1 = (end[0] - length * math.cos(angle - spread), end[1] - length * math.sin(angle - spread))
+    p2 = (end[0] - length * math.cos(angle + spread), end[1] - length * math.sin(angle + spread))
+    draw.polygon((end, p1, p2), fill=color)
+
+
+def poly_arrow(
+    draw: ImageDraw.ImageDraw,
+    points: Sequence[tuple[int, int]],
+    text: str | None = None,
+    label_pos: tuple[int, int] | None = None,
+    color: str = "#344054",
+    width: int = 3,
+    fnt: ImageFont.FreeTypeFont = F_XS,
+) -> None:
+    if len(points) < 2:
+        return
+    draw.line(points, fill=color, width=width, joint="curve")
+    arrow_head(draw, points[-2], points[-1], color=color)
+    if text:
+        if label_pos is None:
+            label_pos = ((points[0][0] + points[-1][0]) // 2, (points[0][1] + points[-1][1]) // 2 - 22)
+        label_text(draw, label_pos, text, color=color, fnt=fnt)
+
+
+def polyline(
+    draw: ImageDraw.ImageDraw,
+    points: Sequence[tuple[int, int]],
+    color: str = "#344054",
+    width: int = 3,
+) -> None:
+    if len(points) >= 2:
+        draw.line(points, fill=color, width=width, joint="curve")
+
+
 def dashed_line(draw: ImageDraw.ImageDraw, start: tuple[int, int], end: tuple[int, int], color: str = "#475467", width: int = 2) -> None:
     x1, y1 = start
     x2, y2 = end
@@ -325,23 +376,19 @@ def draw_class_diagram() -> Path:
     for name, (x1, y1, x2, y2, attrs, methods) in classes.items():
         class_box((x1, y1, x2, y2), name, attrs, methods)
 
-    def assoc(start: tuple[int, int], end: tuple[int, int], label: str, a_mult: str, b_mult: str, offset: tuple[int, int] = (0, -24)) -> None:
-        draw.line((start, end), fill="#344054", width=3)
-        mx = (start[0] + end[0]) // 2 + offset[0]
-        my = (start[1] + end[1]) // 2 + offset[1]
-        w, h = text_size(draw, label, F_XS)
-        draw.rounded_rectangle((mx - 6, my - 4, mx + w + 6, my + h + 4), radius=5, fill="white")
-        draw.text((mx, my), label, font=F_XS, fill="#344054")
-        draw.text((start[0] + 8, start[1] - 26), a_mult, font=F_XS, fill="#344054")
-        draw.text((end[0] - 48, end[1] - 26), b_mult, font=F_XS, fill="#344054")
+    def assoc(points: Sequence[tuple[int, int]], label: str, label_pos: tuple[int, int], mults: Sequence[tuple[str, tuple[int, int]]]) -> None:
+        polyline(draw, points, "#344054", 3)
+        label_text(draw, label_pos, label)
+        for text, pos in mults:
+            draw.text(pos, text, font=F_XS, fill="#344054")
 
-    assoc((470, 255), (700, 255), "提交", "1", "0..*")
-    assoc((1120, 255), (1340, 255), "分派给", "0..*", "0..1")
-    assoc((275, 650), (275, 380), "入住", "1", "1..*")
-    assoc((910, 430), (910, 650), "产生", "1", "0..1")
-    assoc((1340, 760), (1120, 760), "管理", "1", "0..*", offset=(-20, -24))
-    assoc((1340, 330), (1120, 720), "处理", "1", "0..*", offset=(-90, -10))
-    assoc((470, 760), (700, 760), "关联宿舍", "1", "0..*")
+    assoc([(470, 255), (700, 255)], "提交", (565, 225), [("1", (482, 228)), ("0..*", (642, 228))])
+    assoc([(1120, 255), (1340, 255)], "分派给", (1216, 225), [("0..*", (1136, 228)), ("0..1", (1285, 228))])
+    assoc([(275, 650), (275, 520), (235, 520), (235, 380)], "入住", (198, 514), [("1", (250, 622)), ("1..*", (242, 392))])
+    assoc([(910, 430), (910, 650)], "产生", (930, 525), [("1", (922, 445)), ("0..1", (922, 612))])
+    assoc([(1120, 760), (1340, 760)], "管理", (1215, 728), [("0..*", (1136, 732)), ("1", (1312, 732))])
+    assoc([(1120, 820), (1235, 820), (1235, 390), (1340, 390)], "处理", (1248, 570), [("0..*", (1135, 792)), ("1", (1312, 400))])
+    assoc([(470, 760), (700, 760)], "关联宿舍", (548, 728), [("1", (482, 732)), ("0..*", (642, 732))])
 
     draw.text((80, 1070), "说明：类图使用三栏类框、关联名称和多重度；学生提交工单，管理员派工，维修员处理并形成派工记录。", font=F, fill="#172033")
     return save(img, "01_uml_class_diagram.png")
@@ -383,24 +430,24 @@ def draw_level0_dfd() -> Path:
     dfd_store(draw, (880, 960, 1210, 1080), "D2 报修工单库")
     dfd_store(draw, (1320, 960, 1650, 1080), "D3 派工/维修记录")
 
-    arrow(draw, (270, 220), (430, 225), "报修申请")
-    arrow(draw, (750, 225), (1380, 225), "已登记工单")
-    arrow(draw, (1540, 300), (1540, 1030), "完成信息", text_offset=(15, -10))
-    arrow(draw, (1830, 220), (1700, 225), "维修结果")
-    arrow(draw, (1700, 225), (1830, 220), "派工任务")
-    arrow(draw, (590, 300), (590, 580), "待审核工单")
-    arrow(draw, (750, 655), (930, 655), "有效工单")
-    arrow(draw, (1250, 655), (1830, 250), "派工单")
-    arrow(draw, (1830, 1085), (1700, 1105), "报表需求")
-    arrow(draw, (1380, 1105), (270, 1090), "统计报表")
-    arrow(draw, (160, 1040), (520, 730), "审核意见")
-    arrow(draw, (590, 730), (590, 960), "查验档案")
-    arrow(draw, (1035, 730), (1035, 960), "更新工单")
-    arrow(draw, (1540, 300), (1485, 960), "写入维修记录")
-    arrow(draw, (1210, 1020), (1380, 1085), "工单数据")
-    arrow(draw, (1650, 1020), (1380, 1120), "维修数据")
-    arrow(draw, (880, 1000), (750, 690), "读取工单")
-    arrow(draw, (760, 1020), (430, 665), "档案数据")
+    poly_arrow(draw, [(270, 220), (430, 220)], "报修申请", (315, 188))
+    poly_arrow(draw, [(750, 225), (1380, 225)], "已登记工单", (1010, 188))
+    poly_arrow(draw, [(1540, 300), (1540, 760), (1510, 760), (1510, 1030)], "完成信息", (1556, 640))
+    poly_arrow(draw, [(1830, 220), (1700, 220)], "维修结果", (1735, 188))
+    poly_arrow(draw, [(1700, 260), (1830, 260)], "派工任务", (1735, 276))
+    poly_arrow(draw, [(590, 300), (590, 580)], "待审核工单", (610, 425))
+    poly_arrow(draw, [(750, 655), (930, 655)], "有效工单", (795, 622))
+    poly_arrow(draw, [(1250, 655), (1510, 655), (1510, 300), (1830, 300)], "派工单", (1530, 470))
+    poly_arrow(draw, [(1830, 1085), (1700, 1085)], "报表需求", (1730, 1052))
+    poly_arrow(draw, [(1380, 1120), (270, 1120)], "统计报表", (730, 1136))
+    poly_arrow(draw, [(270, 1070), (360, 1070), (360, 700), (520, 700)], "审核意见", (372, 860))
+    poly_arrow(draw, [(590, 730), (590, 960)], "查验档案", (610, 835))
+    poly_arrow(draw, [(1035, 730), (1035, 960)], "更新工单", (1055, 835))
+    poly_arrow(draw, [(1510, 300), (1510, 960)], "写入维修记录", (1528, 805))
+    poly_arrow(draw, [(1210, 1005), (1380, 1065)], "工单数据", (1260, 995))
+    poly_arrow(draw, [(1650, 1005), (1380, 1125)], "维修数据", (1512, 1058))
+    poly_arrow(draw, [(880, 1000), (805, 1000), (805, 690), (750, 690)], "读取工单", (770, 835))
+    poly_arrow(draw, [(760, 1045), (370, 1045), (370, 665), (430, 665)], "档案数据", (382, 835))
 
     draw.text((70, 1320), "DFD 说明：矩形为外部实体，椭圆为加工，双竖线矩形为数据存储，箭头为数据流；未混用流程图控制符号。", font=F, fill="#172033")
     return save(img, "03_level0_dfd.png")
