@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import math
 import os
+import shutil
 import sys
 from pathlib import Path
 from typing import Iterable, Sequence
@@ -30,6 +31,7 @@ ROOT = Path(__file__).resolve().parent
 OUT_DIR = ROOT / "generated"
 IMG_DIR = OUT_DIR / "images"
 DOCX_PATH = OUT_DIR / "宿舍报修管理系统软件工程导论期末考查报告.docx"
+ASCII_DOCX_PATH = OUT_DIR / "dorm_repair_report_compatible.docx"
 MD_PATH = OUT_DIR / "宿舍报修管理系统软件工程导论期末考查报告.md"
 
 FONT_PATH = Path("/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc")
@@ -693,18 +695,10 @@ def set_doc_style(doc: Document) -> None:
 
     footer = section.footer.paragraphs[0]
     footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    footer.add_run("- ")
-    fld_begin = OxmlElement("w:fldChar")
-    fld_begin.set(qn("w:fldCharType"), "begin")
-    instr = OxmlElement("w:instrText")
-    instr.set(qn("xml:space"), "preserve")
-    instr.text = "PAGE"
-    fld_end = OxmlElement("w:fldChar")
-    fld_end.set(qn("w:fldCharType"), "end")
-    footer._p.append(fld_begin)
-    footer._p.append(instr)
-    footer._p.append(fld_end)
-    footer.add_run(" -")
+    run = footer.add_run("- PAGE -")
+    run.font.name = "Times New Roman"
+    run._element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
+    run.font.size = Pt(10.5)
 
 
 def add_paragraph(doc: Document, text: str, first_line: bool = True, size: float = 12, bold: bool = False) -> None:
@@ -903,6 +897,7 @@ def build_docx(images: dict[str, Path]) -> None:
     add_cover(doc)
     add_main_report(doc, images)
     doc.save(DOCX_PATH)
+    shutil.copyfile(DOCX_PATH, ASCII_DOCX_PATH)
 
 
 def main() -> None:
@@ -911,6 +906,7 @@ def main() -> None:
     write_markdown(images)
     build_docx(images)
     print(f"Wrote {DOCX_PATH}")
+    print(f"Wrote {ASCII_DOCX_PATH}")
     print(f"Wrote {MD_PATH}")
     print(f"Wrote {len(images)} diagram images under {IMG_DIR}")
 
