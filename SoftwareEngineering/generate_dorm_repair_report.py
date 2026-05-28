@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import math
 import os
+import base64
+import html
 import shutil
 import sys
 from pathlib import Path
@@ -33,6 +35,8 @@ IMG_DIR = OUT_DIR / "images"
 DOCX_PATH = OUT_DIR / "宿舍报修管理系统软件工程导论期末考查报告.docx"
 ASCII_DOCX_PATH = OUT_DIR / "dorm_repair_report_compatible.docx"
 MD_PATH = OUT_DIR / "宿舍报修管理系统软件工程导论期末考查报告.md"
+FINAL_DOC_PATH = ROOT / "宿舍报修管理系统软件工程导论期末考查报告.doc"
+FINAL_MHTML_PATH = OUT_DIR / "宿舍报修管理系统软件工程导论期末考查报告.mht"
 
 FONT_PATH = Path("/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc")
 if not FONT_PATH.exists():
@@ -935,18 +939,18 @@ def add_cover(doc: Document) -> None:
     add_centered_run(doc, "期  末  考  查  报  告", 26, "黑体", True, 18)
     add_centered_run(doc, "（《软件工程导论》）", 18, "宋体", False, 30)
 
-    add_field_line(doc, "姓    名： ")
-    add_field_line(doc, "学    号： ")
+    add_field_line(doc, "姓    名： ", "_ _刘小麟____")
+    add_field_line(doc, "学    号： ", "   2052442135")
     add_field_line(doc, "系    别： ", "_信息工程学院_")
     add_field_line(doc, "专    业： ", "_软件技术_    _")
     add_field_line(doc, "年    级： ", "___2024级_____")
-    add_field_line(doc, "班    级： ", "___ ___________")
+    add_field_line(doc, "班    级： ", "  软件技术14班")
     add_field_line(doc, "指导教师： ", "___项叙淋_ ____")
 
     for _ in range(2):
         doc.add_paragraph()
-    add_centered_run(doc, "2026 年    月    日 至   2026 年   月   日", 14, "宋体")
-    add_centered_run(doc, "所 在 单 位 ：  __         _级    系    专业    班", 12, "宋体")
+    add_centered_run(doc, "2026 年 5 月 28 日 至 2026 年 5 月 30 日", 14, "宋体")
+    add_centered_run(doc, "所 在 单 位 ： __ 2024 _级 信息工程 系 软件技术 专业 14 班", 12, "宋体")
     doc.add_page_break()
 
 
@@ -1047,6 +1051,385 @@ def write_markdown(images: dict[str, Path]) -> None:
     MD_PATH.write_text("\n".join(lines), encoding="utf-8")
 
 
+def html_escape(text: str) -> str:
+    return html.escape(text, quote=False)
+
+
+def add_html_paragraph(parts: list[str], text: str, class_name: str = "p") -> None:
+    parts.append(f'<p class="{class_name}">{html_escape(text)}</p>')
+
+
+def add_html_table(parts: list[str], rows: Sequence[Sequence[str]]) -> None:
+    parts.append('<table class="grid">')
+    for i, row in enumerate(rows):
+        parts.append("<tr>")
+        tag = "th" if i == 0 else "td"
+        for cell in row:
+            parts.append(f"<{tag}>{html_escape(cell)}</{tag}>")
+        parts.append("</tr>")
+    parts.append("</table>")
+
+
+def build_embedded_mhtml(images: dict[str, Path]) -> None:
+    boundary = "----=_FinalExamsDormRepairReport"
+    image_cids = {key: f"{path.stem}@finalexams.local" for key, path in images.items()}
+
+    parts: list[str] = []
+    parts.append("<html><head><meta charset=\"utf-8\">")
+    parts.append(
+        """
+<style>
+@page { margin: 2.5cm 2.4cm 2.2cm 2.7cm; }
+body { font-family: SimSun, Songti SC, serif; font-size: 12pt; line-height: 1.55; color: #111; }
+.cover { text-align: center; page-break-after: always; }
+.school { font-family: "Times New Roman", serif; font-size: 14pt; margin-top: 28pt; }
+.cover-title { font-family: SimHei, sans-serif; font-size: 28pt; font-weight: bold; letter-spacing: 6pt; margin: 70pt 0 18pt; }
+.course { font-size: 18pt; margin-bottom: 30pt; }
+.field { font-size: 16pt; line-height: 2.0; }
+.date { font-size: 14pt; margin-top: 28pt; }
+h1 { font-family: SimHei, sans-serif; font-size: 16pt; margin: 18pt 0 8pt; }
+h2 { font-family: SimHei, sans-serif; font-size: 14pt; margin: 14pt 0 6pt; }
+.section-label { font-family: SimHei, sans-serif; font-size: 14pt; font-weight: bold; margin-top: 14pt; }
+.p { text-indent: 2em; margin: 6pt 0; }
+.plain { margin: 6pt 0; }
+.figure { text-align: center; margin: 12pt 0 6pt; page-break-inside: avoid; }
+.figure img { max-width: 100%; height: auto; }
+.caption { text-align: center; font-size: 10.5pt; margin: 3pt 0 10pt; }
+pre { font-family: "Courier New", monospace; font-size: 9.5pt; line-height: 1.2; margin-left: 1.5em; white-space: pre-wrap; }
+table.grid { width: 100%; border-collapse: collapse; margin: 8pt 0; font-size: 10.5pt; }
+table.grid th, table.grid td { border: 1px solid #333; padding: 4pt; vertical-align: middle; }
+table.grid th { background: #d9eaf7; font-weight: bold; text-align: center; }
+.signature { margin-top: 16pt; }
+</style>
+"""
+    )
+    parts.append("</head><body>")
+
+    parts.append('<div class="cover">')
+    parts.append('<div class="school">Sichuan Top Vocational College of Information Technology</div>')
+    parts.append('<div class="cover-title">期 末 考 查 报 告</div>')
+    parts.append('<div class="course">（《软件工程导论》）</div>')
+    for line in [
+        "姓    名： _ _刘小麟____",
+        "学    号：    2052442135",
+        "系    别： _信息工程学院_",
+        "专    业： _软件技术_    _",
+        "年    级： ___2024级_____",
+        "班    级：  软件技术14班",
+        "指导教师： ___项叙淋_ ____",
+    ]:
+        parts.append(f'<div class="field">{html_escape(line)}</div>')
+    parts.append('<div class="date">2026 年 5 月 28 日 至 2026 年 5 月 30 日</div>')
+    parts.append('<div class="field">所 在 单 位 ： __ 2024 _级 信息工程 系 软件技术 专业 14 班</div>')
+    parts.append("</div>")
+
+    parts.append('<div class="section-label">项目名称：</div>')
+    add_html_paragraph(parts, "宿舍报修管理系统分析与设计", "plain")
+    parts.append('<div class="section-label">项目目的：</div>')
+    for idx, para in enumerate(PROJECT_PURPOSE, 1):
+        add_html_paragraph(parts, f"{idx}、{para}", "plain")
+    parts.append('<div class="section-label">项目内容及要求：</div>')
+    add_html_paragraph(parts, "说明：", "plain")
+    for idx, para in enumerate(TEMPLATE_REQUIREMENTS, 1):
+        add_html_paragraph(parts, f"{idx}、{para}", "plain")
+
+    parts.append("<h1>一、需求分析（30分）</h1>")
+    for para in REPORT_SECTIONS[0][1]:
+        add_html_paragraph(parts, para)
+    parts.append("<h2>1、生命周期模型与系统功能（6分）</h2>")
+    parts.append("<h2>2、E-R图或UML类图（10分）</h2>")
+    add_html_paragraph(parts, "本报告选择绘制 UML 类图。类图包含学生、宿舍、报修工单、维修员、管理员、派工记录六个主要类，能够体现系统的静态结构。")
+    add_html_figure(parts, image_cids["类图"], "图 1 宿舍报修管理系统 UML 类图")
+    parts.append("<h2>3、分层数据流图（DFD）（10分）</h2>")
+    add_html_paragraph(parts, "顶层 DFD 将整个系统抽象为一个加工 P0，外部实体包括学生、管理员、维修员和后勤管理部门。")
+    add_html_figure(parts, image_cids["顶层DFD"], "图 2 顶层 DFD")
+    add_html_paragraph(parts, "0 层 DFD 将 P0 分解为报修申请受理、工单审核、派工处理、维修反馈确认、统计查询五个加工，并设置学生/宿舍档案、报修工单库、派工/维修记录三个数据存储。")
+    add_html_figure(parts, image_cids["0层DFD"], "图 3 0层 DFD")
+    parts.append("<h2>4、核心业务实体状态图（4分）</h2>")
+    add_html_paragraph(parts, "核心业务实体选择“报修工单”。工单状态从待提交开始，经待审核、待派工、维修中、待确认，最终进入已完成状态。异常状态包括已驳回、已取消和返修。")
+    add_html_figure(parts, image_cids["状态图"], "图 4 报修工单 UML 状态图")
+
+    parts.append("<h1>二、总体设计（15分）</h1>")
+    parts.append("<h2>1、DFD转换为系统结构图（15分）</h2>")
+    for para in REPORT_SECTIONS[1][1]:
+        add_html_paragraph(parts, para)
+    add_html_figure(parts, image_cids["系统结构图"], "图 5 系统功能结构图")
+
+    parts.append("<h1>三、详细设计（15分）</h1>")
+    for para in REPORT_SECTIONS[2][1]:
+        add_html_paragraph(parts, para)
+    add_html_figure(parts, image_cids["流程图"], "图 6 报修申请受理模块程序流程图")
+    add_html_figure(parts, image_cids["NS图"], "图 7 派工处理模块 N-S 图")
+
+    parts.append("<h1>四、程序编码（10分）</h1>")
+    parts.append("<h2>1、PDL伪代码或可运行代码（10分）</h2>")
+    for para in REPORT_SECTIONS[3][1]:
+        add_html_paragraph(parts, para)
+    parts.append(f"<pre>{html_escape(PDL)}</pre>")
+
+    parts.append("<h1>五、软件测试（30分）</h1>")
+    for para in REPORT_SECTIONS[4][1]:
+        add_html_paragraph(parts, para)
+    parts.append("<h2>1、白盒测试与黑盒测试（20分）</h2>")
+    add_html_paragraph(parts, "白盒测试以报修申请受理模块的 PDL 伪代码为依据。该模块的关键判定包括必填信息是否完整、学生宿舍档案是否匹配、附件是否合法、附件数量是否超限以及故障类型是否紧急。")
+    add_html_table(parts, WHITE_BOX_ROWS)
+    add_html_paragraph(parts, "黑盒测试从输入域出发，不依赖程序内部结构。等价类划分如下表所示。")
+    add_html_table(parts, EQUIVALENCE_ROWS)
+    add_html_paragraph(parts, "边界值分析包括一般性测试和健壮性测试，如下表所示。")
+    add_html_table(parts, BOUNDARY_ROWS)
+    parts.append("<h2>2、用例图设计（10分）</h2>")
+    add_html_paragraph(parts, "系统用例图包含学生、管理员、维修员、后勤部门四类参与者，覆盖报修、查询、审核、派工、维修反馈、统计导出等核心用例。")
+    add_html_figure(parts, image_cids["用例图"], "图 8 宿舍报修管理系统 UML 用例图")
+
+    parts.append('<div class="section-label">个人总结：</div>')
+    add_html_paragraph(parts, "宿舍报修管理系统围绕报修工单形成完整业务闭环。需求分析中的类图、DFD 和状态图明确了系统对象、数据流和状态变化；总体设计将 0 层 DFD 转换为层次化功能结构；详细设计、PDL 伪代码和测试用例均围绕报修申请受理与派工处理展开，保证了前后设计内容的一致性。系统能够满足学生便捷报修、管理员规范派工、维修员及时反馈和后勤部门统计管理的基本需求。")
+    add_html_paragraph(parts, "通过本次宿舍报修管理系统的分析与设计，我进一步理解了软件工程各阶段之间的衔接关系。需求分析阶段明确系统边界和数据流，总体设计阶段完成模块划分，详细设计阶段细化关键模块逻辑，编码与测试阶段则验证设计是否可实现、是否前后一致。本次设计也让我认识到，图形规范、数据命名和测试用例之间必须保持一致，否则容易出现设计与实现脱节的问题。")
+    parts.append('<p class="signature">学生签名：____________________</p>')
+    parts.append('<p class="signature">指导教师签字（签章）：____________________</p>')
+    parts.append("</body></html>")
+    html_part = "\n".join(parts)
+
+    message = [
+        "MIME-Version: 1.0",
+        "Content-Type: multipart/related;",
+        f'    boundary="{boundary}";',
+        '    type="text/html"',
+        "",
+        f"--{boundary}",
+        'Content-Type: text/html; charset="utf-8"',
+        "Content-Transfer-Encoding: 8bit",
+        "",
+        html_part,
+        "",
+    ]
+    for key, path in images.items():
+        cid = image_cids[key]
+        encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+        wrapped = "\n".join(encoded[i : i + 76] for i in range(0, len(encoded), 76))
+        message.extend(
+            [
+                f"--{boundary}",
+                "Content-Type: image/png",
+                "Content-Transfer-Encoding: base64",
+                f"Content-Location: {path.name}",
+                f"Content-ID: <{cid}>",
+                "",
+                wrapped,
+                "",
+            ]
+        )
+    message.append(f"--{boundary}--")
+    content = "\n".join(message)
+    FINAL_MHTML_PATH.write_text(content, encoding="utf-8")
+
+
+def add_html_figure(parts: list[str], cid: str, caption: str) -> None:
+    parts.append(f'<div class="figure"><img src="cid:{cid}" alt="{html.escape(caption)}"></div>')
+    parts.append(f'<div class="caption">{html_escape(caption)}</div>')
+
+
+def rtf_unicode_escape(text: str) -> str:
+    escaped: list[str] = []
+    for ch in text:
+        code = ord(ch)
+        if ch == "\\":
+            escaped.append(r"\\")
+        elif ch == "{":
+            escaped.append(r"\{")
+        elif ch == "}":
+            escaped.append(r"\}")
+        elif ch == "\n":
+            escaped.append(r"\line ")
+        elif 32 <= code <= 126:
+            escaped.append(ch)
+        else:
+            signed = code if code <= 32767 else code - 65536
+            escaped.append(rf"\u{signed}?")
+    return "".join(escaped)
+
+
+def rtf_para(
+    parts: list[str],
+    text: str = "",
+    *,
+    size: int = 24,
+    font: int = 0,
+    bold: bool = False,
+    align: str = "left",
+    first_line: bool = False,
+    before: int = 0,
+    after: int = 90,
+    line_spacing: int = 360,
+) -> None:
+    align_map = {"left": r"\ql", "center": r"\qc", "right": r"\qr"}
+    controls = [
+        r"\pard",
+        align_map.get(align, r"\ql"),
+        rf"\f{font}",
+        rf"\fs{size}",
+        rf"\sa{after}",
+        rf"\sb{before}",
+        rf"\sl{line_spacing}",
+        r"\slmult1",
+    ]
+    if first_line:
+        controls.append(r"\fi420")
+    if bold:
+        controls.append(r"\b")
+    parts.append("".join(controls) + " " + rtf_unicode_escape(text) + (r"\b0" if bold else "") + r"\par")
+
+
+def rtf_heading(parts: list[str], text: str, level: int = 1) -> None:
+    if level == 1:
+        rtf_para(parts, text, size=32, font=1, bold=True, before=260, after=120)
+    else:
+        rtf_para(parts, text, size=28, font=1, bold=True, before=200, after=90)
+
+
+def rtf_section_label(parts: list[str], text: str) -> None:
+    rtf_para(parts, text, size=28, font=1, bold=True, before=160, after=70)
+
+
+def rtf_table(parts: list[str], rows: Sequence[Sequence[str]]) -> None:
+    if not rows:
+        return
+    col_count = len(rows[0])
+    table_width = 9000
+    col_width = table_width // col_count
+    cell_edges = [col_width * (idx + 1) for idx in range(col_count)]
+    for row_index, row in enumerate(rows):
+        cells = "".join(rf"\clvertalc\clbrdrt\brdrs\brdrw10\clbrdrl\brdrs\brdrw10\clbrdrb\brdrs\brdrw10\clbrdrr\brdrs\brdrw10\cellx{edge}" for edge in cell_edges)
+        parts.append(r"\trowd\trgaph90\trleft0" + cells)
+        for cell in row:
+            cell_text = rtf_unicode_escape(cell)
+            bold_start = r"\b " if row_index == 0 else ""
+            bold_end = r"\b0 " if row_index == 0 else ""
+            parts.append(rf"\pard\intbl\ql\f0\fs21\sa40 {bold_start}{cell_text}{bold_end}\cell")
+        parts.append(r"\row")
+    parts.append(r"\pard\par")
+
+
+def rtf_picture(parts: list[str], path: Path, width_cm: float) -> None:
+    with Image.open(path) as image:
+        px_w, px_h = image.size
+    width_twips = int(width_cm / 2.54 * 1440)
+    height_twips = max(1, int(width_twips * px_h / px_w))
+    hex_data = path.read_bytes().hex()
+    wrapped = "\n".join(hex_data[i : i + 128] for i in range(0, len(hex_data), 128))
+    parts.append(
+        rf"\pard\qc\sa80 {{\pict\pngblip\picw{px_w}\pich{px_h}\picwgoal{width_twips}\pichgoal{height_twips}"
+        "\n"
+        + wrapped
+        + "\n}"
+        + r"\par"
+    )
+
+
+def rtf_figure(parts: list[str], caption: str, path: Path, width_cm: float = 15.8) -> None:
+    rtf_picture(parts, path, width_cm)
+    rtf_para(parts, caption, size=21, align="center", after=160)
+
+
+def rtf_code_block(parts: list[str], code: str) -> None:
+    for line in code.splitlines():
+        rtf_para(parts, line, size=19, font=3, first_line=False, after=20, line_spacing=260)
+
+
+def build_embedded_rtf_doc(images: dict[str, Path]) -> None:
+    parts: list[str] = [
+        r"{\rtf1\ansi\deff0\uc1",
+        r"{\fonttbl{\f0 SimSun;}{\f1 SimHei;}{\f2 Times New Roman;}{\f3 Courier New;}}",
+        r"\paperw11906\paperh16838\margl1531\margr1417\margt1417\margb1247",
+        r"{\footer\pard\qc\f2\fs21 - PAGE -\par}",
+    ]
+
+    rtf_para(parts, "", after=260)
+    rtf_para(parts, "Sichuan Top Vocational College of Information Technology", size=28, font=2, align="center", after=460)
+    rtf_para(parts, "期  末  考  查  报  告", size=52, font=1, bold=True, align="center", after=260)
+    rtf_para(parts, "（《软件工程导论》）", size=36, align="center", after=420)
+    for line in [
+        "姓    名： _ _刘小麟____",
+        "学    号：    2052442135",
+        "系    别： _信息工程学院_",
+        "专    业： _软件技术_    _",
+        "年    级： ___2024级_____",
+        "班    级：  软件技术14班",
+        "指导教师： ___项叙淋_ ____",
+    ]:
+        rtf_para(parts, line, size=32, align="center", after=80, line_spacing=430)
+    rtf_para(parts, "", after=180)
+    rtf_para(parts, "2026 年 5 月 28 日 至 2026 年 5 月 30 日", size=28, align="center", after=90)
+    rtf_para(parts, "所 在 单 位 ： __ 2024 _级 信息工程 系 软件技术 专业 14 班", size=24, align="center", after=220)
+    parts.append(r"\page")
+
+    rtf_section_label(parts, "项目名称：")
+    rtf_para(parts, "宿舍报修管理系统分析与设计", first_line=False)
+    rtf_section_label(parts, "项目目的：")
+    for idx, para in enumerate(PROJECT_PURPOSE, 1):
+        rtf_para(parts, f"{idx}、{para}", first_line=False)
+    rtf_section_label(parts, "项目内容及要求：")
+    rtf_para(parts, "说明：", first_line=False, bold=True)
+    for idx, para in enumerate(TEMPLATE_REQUIREMENTS, 1):
+        rtf_para(parts, f"{idx}、{para}", first_line=False)
+
+    rtf_heading(parts, "一、需求分析（30分）", 1)
+    for para in REPORT_SECTIONS[0][1]:
+        rtf_para(parts, para, first_line=True)
+    rtf_heading(parts, "1、生命周期模型与系统功能（6分）", 2)
+    rtf_heading(parts, "2、E-R图或UML类图（10分）", 2)
+    rtf_para(parts, "本报告选择绘制 UML 类图。类图包含学生、宿舍、报修工单、维修员、管理员、派工记录六个主要类，能够体现系统的静态结构。", first_line=True)
+    rtf_figure(parts, "图 1 宿舍报修管理系统 UML 类图", images["类图"], 15.8)
+    rtf_heading(parts, "3、分层数据流图（DFD）（10分）", 2)
+    rtf_para(parts, "顶层 DFD 将整个系统抽象为一个加工 P0，外部实体包括学生、管理员、维修员和后勤管理部门。", first_line=True)
+    rtf_figure(parts, "图 2 顶层 DFD", images["顶层DFD"], 15.8)
+    rtf_para(parts, "0 层 DFD 将 P0 分解为报修申请受理、工单审核、派工处理、维修反馈确认、统计查询五个加工，并设置学生/宿舍档案、报修工单库、派工/维修记录三个数据存储。", first_line=True)
+    rtf_figure(parts, "图 3 0层 DFD", images["0层DFD"], 16.0)
+    rtf_heading(parts, "4、核心业务实体状态图（4分）", 2)
+    rtf_para(parts, "核心业务实体选择“报修工单”。工单状态从待提交开始，经待审核、待派工、维修中、待确认，最终进入已完成状态。异常状态包括已驳回、已取消和返修。", first_line=True)
+    rtf_figure(parts, "图 4 报修工单 UML 状态图", images["状态图"], 15.8)
+
+    rtf_heading(parts, "二、总体设计（15分）", 1)
+    rtf_heading(parts, "1、DFD转换为系统结构图（15分）", 2)
+    for para in REPORT_SECTIONS[1][1]:
+        rtf_para(parts, para, first_line=True)
+    rtf_figure(parts, "图 5 系统功能结构图", images["系统结构图"], 16.0)
+
+    rtf_heading(parts, "三、详细设计（15分）", 1)
+    for para in REPORT_SECTIONS[2][1]:
+        rtf_para(parts, para, first_line=True)
+    rtf_figure(parts, "图 6 报修申请受理模块程序流程图", images["流程图"], 13.5)
+    rtf_figure(parts, "图 7 派工处理模块 N-S 图", images["NS图"], 14.5)
+
+    rtf_heading(parts, "四、程序编码（10分）", 1)
+    rtf_heading(parts, "1、PDL伪代码或可运行代码（10分）", 2)
+    for para in REPORT_SECTIONS[3][1]:
+        rtf_para(parts, para, first_line=True)
+    rtf_code_block(parts, PDL)
+
+    rtf_heading(parts, "五、软件测试（30分）", 1)
+    for para in REPORT_SECTIONS[4][1]:
+        rtf_para(parts, para, first_line=True)
+    rtf_heading(parts, "1、白盒测试与黑盒测试（20分）", 2)
+    rtf_para(parts, "白盒测试以报修申请受理模块的 PDL 伪代码为依据。该模块的关键判定包括必填信息是否完整、学生宿舍档案是否匹配、附件是否合法、附件数量是否超限以及故障类型是否紧急。", first_line=True)
+    rtf_table(parts, WHITE_BOX_ROWS)
+    rtf_para(parts, "黑盒测试从输入域出发，不依赖程序内部结构。等价类划分如下表所示。", first_line=True)
+    rtf_table(parts, EQUIVALENCE_ROWS)
+    rtf_para(parts, "边界值分析包括一般性测试和健壮性测试，如下表所示。", first_line=True)
+    rtf_table(parts, BOUNDARY_ROWS)
+    rtf_heading(parts, "2、用例图设计（10分）", 2)
+    rtf_para(parts, "系统用例图包含学生、管理员、维修员、后勤部门四类参与者，覆盖报修、查询、审核、派工、维修反馈、统计导出等核心用例。", first_line=True)
+    rtf_figure(parts, "图 8 宿舍报修管理系统 UML 用例图", images["用例图"], 16.0)
+
+    rtf_section_label(parts, "个人总结：")
+    rtf_para(parts, "宿舍报修管理系统围绕报修工单形成完整业务闭环。需求分析中的类图、DFD 和状态图明确了系统对象、数据流和状态变化；总体设计将 0 层 DFD 转换为层次化功能结构；详细设计、PDL 伪代码和测试用例均围绕报修申请受理与派工处理展开，保证了前后设计内容的一致性。系统能够满足学生便捷报修、管理员规范派工、维修员及时反馈和后勤部门统计管理的基本需求。", first_line=True)
+    rtf_para(parts, "通过本次宿舍报修管理系统的分析与设计，我进一步理解了软件工程各阶段之间的衔接关系。需求分析阶段明确系统边界和数据流，总体设计阶段完成模块划分，详细设计阶段细化关键模块逻辑，编码与测试阶段则验证设计是否可实现、是否前后一致。本次设计也让我认识到，图形规范、数据命名和测试用例之间必须保持一致，否则容易出现设计与实现脱节的问题。", first_line=True)
+    rtf_para(parts, "学生签名：____________________", first_line=False, before=160)
+    rtf_para(parts, "指导教师签字（签章）：____________________", first_line=False)
+
+    parts.append("}")
+    FINAL_DOC_PATH.write_text("\n".join(parts), encoding="ascii")
+
+
 def build_docx(images: dict[str, Path]) -> None:
     doc = Document()
     set_doc_style(doc)
@@ -1060,9 +1443,13 @@ def main() -> None:
     ensure_dirs()
     images = draw_all_diagrams()
     write_markdown(images)
+    build_embedded_mhtml(images)
+    build_embedded_rtf_doc(images)
     build_docx(images)
     print(f"Wrote {DOCX_PATH}")
     print(f"Wrote {ASCII_DOCX_PATH}")
+    print(f"Wrote {FINAL_DOC_PATH}")
+    print(f"Wrote {FINAL_MHTML_PATH}")
     print(f"Wrote {MD_PATH}")
     print(f"Wrote {len(images)} diagram images under {IMG_DIR}")
 
