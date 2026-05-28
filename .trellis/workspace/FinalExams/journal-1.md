@@ -104,3 +104,36 @@ Removed risky custom footer XML, regenerated the report, added an ASCII filename
 ### Next Steps
 
 - None - task complete
+
+
+## Session 4: Review and improve report diagrams
+
+**Date**: 2026-05-28
+**Task**: Review and improve report diagrams
+**Branch**: `master`
+
+### Summary
+
+Reviewed all generated SoftwareEngineering diagrams against UML, DFD, flowchart, N-S chart, and structure chart conventions; regenerated weak diagrams and rebuilt the offline Word outputs.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `09bd462` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
