@@ -237,3 +237,37 @@ Generated the final offline .doc as Word/WPS-compatible RTF with 8 embedded PNG 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 8: Submit user provided final doc
+
+**Date**: 2026-05-29
+**Task**: Submit user provided final doc
+**Branch**: `master`
+
+### Summary
+
+Checked the user-updated final .doc as an OLE Word document, confirmed it replaces the previous RTF attempt and has no GitHub/INCLUDEPICTURE links, then committed it as the final deliverable.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `de98b10` | (see git log) |
+| `bf9821a` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
