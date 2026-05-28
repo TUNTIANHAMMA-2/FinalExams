@@ -71,3 +71,36 @@ Regenerated the dorm repair report with the original .doc template cover text, p
 ### Next Steps
 
 - None - task complete
+
+
+## Session 3: Fix compatible SoftwareEngineering report docx
+
+**Date**: 2026-05-28
+**Task**: Fix compatible SoftwareEngineering report docx
+**Branch**: `master`
+
+### Summary
+
+Removed risky custom footer XML, regenerated the report, added an ASCII filename compatible copy, and validated both docx packages as parseable zip/OpenXML files.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3b6542d` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
