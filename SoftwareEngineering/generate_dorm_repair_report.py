@@ -163,6 +163,54 @@ def diamond(
     draw_center_text(draw, box, text, fnt)
 
 
+def parallelogram(
+    draw: ImageDraw.ImageDraw,
+    box: tuple[int, int, int, int],
+    text: str,
+    fill: str = "#F6F8FB",
+    outline: str = "#2E5EAA",
+    width: int = 3,
+    fnt: ImageFont.FreeTypeFont = F,
+) -> None:
+    x1, y1, x2, y2 = box
+    skew = min(45, max(20, (x2 - x1) // 8))
+    pts = ((x1 + skew, y1), (x2, y1), (x2 - skew, y2), (x1, y2))
+    draw.polygon(pts, fill=fill, outline=outline)
+    for offset in range(width):
+        pts2 = ((x1 + skew + offset, y1 + offset), (x2 - offset, y1 + offset), (x2 - skew - offset, y2 - offset), (x1 + offset, y2 - offset))
+        draw.line(pts2 + (pts2[0],), fill=outline, width=1)
+    draw_center_text(draw, box, text, fnt)
+
+
+def terminator(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], text: str) -> None:
+    draw.rounded_rectangle(box, radius=(box[3] - box[1]) // 2, fill="#EEF7F0", outline="#287A45", width=3)
+    draw_center_text(draw, box, text, F)
+
+
+def process_box(
+    draw: ImageDraw.ImageDraw,
+    box: tuple[int, int, int, int],
+    text: str,
+    fill: str = "#F6F8FB",
+    outline: str = "#2E5EAA",
+    fnt: ImageFont.FreeTypeFont = F,
+) -> None:
+    draw.rectangle(box, fill=fill, outline=outline, width=3)
+    draw_center_text(draw, box, text, fnt)
+
+
+def dfd_store(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], text: str) -> None:
+    x1, y1, x2, y2 = box
+    draw.rectangle(box, fill="#F6F8FB", outline="#6B7280", width=3)
+    draw.line((x1 + 18, y1, x1 + 18, y2), fill="#6B7280", width=3)
+    draw.line((x2 - 18, y1, x2 - 18, y2), fill="#6B7280", width=3)
+    draw_center_text(draw, (x1 + 22, y1, x2 - 22, y2), text, F_S)
+
+
+def module_line(draw: ImageDraw.ImageDraw, start: tuple[int, int], end: tuple[int, int], color: str = "#475467") -> None:
+    draw.line((start, end), fill=color, width=3)
+
+
 def arrow(
     draw: ImageDraw.ImageDraw,
     start: tuple[int, int],
@@ -188,7 +236,7 @@ def arrow(
         draw.text((mx, my), text, font=fnt, fill=color)
 
 
-def dashed_line(draw: ImageDraw.ImageDraw, start: tuple[int, int], end: tuple[int, int], color: str = "#475467") -> None:
+def dashed_line(draw: ImageDraw.ImageDraw, start: tuple[int, int], end: tuple[int, int], color: str = "#475467", width: int = 2) -> None:
     x1, y1 = start
     x2, y2 = end
     dx, dy = x2 - x1, y2 - y1
@@ -198,7 +246,31 @@ def dashed_line(draw: ImageDraw.ImageDraw, start: tuple[int, int], end: tuple[in
         if i % 2 == 0:
             a = i / steps
             b = min(1, (i + 1) / steps)
-            draw.line((x1 + dx * a, y1 + dy * a, x1 + dx * b, y1 + dy * b), fill=color, width=2)
+            draw.line((x1 + dx * a, y1 + dy * a, x1 + dx * b, y1 + dy * b), fill=color, width=width)
+
+
+def dashed_arrow(
+    draw: ImageDraw.ImageDraw,
+    start: tuple[int, int],
+    end: tuple[int, int],
+    text: str | None = None,
+    color: str = "#475467",
+    fnt: ImageFont.FreeTypeFont = F_XS,
+    text_offset: tuple[int, int] = (0, -24),
+) -> None:
+    dashed_line(draw, start, end, color=color, width=2)
+    angle = math.atan2(end[1] - start[1], end[0] - start[0])
+    length = 15
+    spread = math.pi / 7
+    p1 = (end[0] - length * math.cos(angle - spread), end[1] - length * math.sin(angle - spread))
+    p2 = (end[0] - length * math.cos(angle + spread), end[1] - length * math.sin(angle + spread))
+    draw.polygon((end, p1, p2), fill=color)
+    if text:
+        mx = (start[0] + end[0]) // 2 + text_offset[0]
+        my = (start[1] + end[1]) // 2 + text_offset[1]
+        w, h = text_size(draw, text, fnt)
+        draw.rounded_rectangle((mx - 8, my - 4, mx + w + 8, my + h + 4), radius=5, fill="white")
+        draw.text((mx, my), text, font=fnt, fill=color)
 
 
 def cylinder(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], text: str) -> None:
@@ -253,15 +325,25 @@ def draw_class_diagram() -> Path:
     for name, (x1, y1, x2, y2, attrs, methods) in classes.items():
         class_box((x1, y1, x2, y2), name, attrs, methods)
 
-    arrow(draw, (470, 255), (700, 255), "提交 1..*")
-    arrow(draw, (1120, 255), (1340, 255), "分派 0..1")
-    arrow(draw, (275, 380), (275, 650), "入住 1")
-    arrow(draw, (910, 430), (910, 650), "生成 1")
-    arrow(draw, (1340, 760), (1120, 760), "管理")
-    arrow(draw, (1340, 330), (1120, 720), "处理")
-    arrow(draw, (470, 760), (700, 760), "关联")
+    def assoc(start: tuple[int, int], end: tuple[int, int], label: str, a_mult: str, b_mult: str, offset: tuple[int, int] = (0, -24)) -> None:
+        draw.line((start, end), fill="#344054", width=3)
+        mx = (start[0] + end[0]) // 2 + offset[0]
+        my = (start[1] + end[1]) // 2 + offset[1]
+        w, h = text_size(draw, label, F_XS)
+        draw.rounded_rectangle((mx - 6, my - 4, mx + w + 6, my + h + 4), radius=5, fill="white")
+        draw.text((mx, my), label, font=F_XS, fill="#344054")
+        draw.text((start[0] + 8, start[1] - 26), a_mult, font=F_XS, fill="#344054")
+        draw.text((end[0] - 48, end[1] - 26), b_mult, font=F_XS, fill="#344054")
 
-    draw.text((80, 1070), "说明：学生提交报修工单；管理员审核并派工；维修员处理后生成派工记录，学生确认并评价。", font=F, fill="#172033")
+    assoc((470, 255), (700, 255), "提交", "1", "0..*")
+    assoc((1120, 255), (1340, 255), "分派给", "0..*", "0..1")
+    assoc((275, 650), (275, 380), "入住", "1", "1..*")
+    assoc((910, 430), (910, 650), "产生", "1", "0..1")
+    assoc((1340, 760), (1120, 760), "管理", "1", "0..*", offset=(-20, -24))
+    assoc((1340, 330), (1120, 720), "处理", "1", "0..*", offset=(-90, -10))
+    assoc((470, 760), (700, 760), "关联宿舍", "1", "0..*")
+
+    draw.text((80, 1070), "说明：类图使用三栏类框、关联名称和多重度；学生提交工单，管理员派工，维修员处理并形成派工记录。", font=F, fill="#172033")
     return save(img, "01_uml_class_diagram.png")
 
 
@@ -297,9 +379,9 @@ def draw_level0_dfd() -> Path:
     ellipse(draw, (1380, 150, 1700, 300), "P4\n维修反馈确认", "#EEF7FF", "#275EAD", fnt=F)
     ellipse(draw, (1380, 1030, 1700, 1180), "P5\n统计查询", "#EEF7FF", "#275EAD", fnt=F)
 
-    cylinder(draw, (430, 960, 760, 1080), "D1 学生/宿舍档案")
-    cylinder(draw, (880, 960, 1210, 1080), "D2 报修工单库")
-    cylinder(draw, (1320, 960, 1650, 1080), "D3 派工/维修记录")
+    dfd_store(draw, (430, 960, 760, 1080), "D1 学生/宿舍档案")
+    dfd_store(draw, (880, 960, 1210, 1080), "D2 报修工单库")
+    dfd_store(draw, (1320, 960, 1650, 1080), "D3 派工/维修记录")
 
     arrow(draw, (270, 220), (430, 225), "报修申请")
     arrow(draw, (750, 225), (1380, 225), "已登记工单")
@@ -320,7 +402,7 @@ def draw_level0_dfd() -> Path:
     arrow(draw, (880, 1000), (750, 690), "读取工单")
     arrow(draw, (760, 1020), (430, 665), "档案数据")
 
-    draw.text((70, 1320), "DFD 说明：矩形为源点/汇点，椭圆为加工，圆柱为数据存储，箭头为数据流。", font=F, fill="#172033")
+    draw.text((70, 1320), "DFD 说明：矩形为外部实体，椭圆为加工，双竖线矩形为数据存储，箭头为数据流；未混用流程图控制符号。", font=F, fill="#172033")
     return save(img, "03_level0_dfd.png")
 
 
@@ -345,7 +427,7 @@ def draw_state_diagram() -> Path:
     arrow(draw, (920, 465), (1050, 465), "分派维修员")
     arrow(draw, (1250, 465), (1380, 465), "填写完成结果")
     arrow(draw, (1480, 520), (1480, 690), "学生确认")
-    arrow(draw, (390, 710), (260, 710), "提交前取消")
+    arrow(draw, (170, 520), (170, 690), "未提交前取消", text_offset=(15, -8))
     arrow(draw, (490, 520), (490, 690), "信息不完整/不合规")
     arrow(draw, (1380, 740), (1250, 500), "要求返修", text_offset=(-85, -12))
     draw.ellipse((1665, 725, 1725, 785), outline="#111827", width=4)
@@ -357,7 +439,7 @@ def draw_state_diagram() -> Path:
 
 def draw_structure_chart() -> Path:
     img, draw = new_canvas(1900, 1180, "由 0 层 DFD 转换得到的系统结构图")
-    rect(draw, (760, 120, 1140, 210), "宿舍报修管理系统", "#EAF1FF", "#275EAD", fnt=F_H)
+    rect(draw, (745, 120, 1155, 210), "宿舍报修管理系统", "#EAF1FF", "#275EAD", fnt=F_H)
     level1 = [
         ("报修申请模块", (80, 360, 360, 450)),
         ("工单审核模块", (430, 360, 710, 450)),
@@ -365,9 +447,14 @@ def draw_structure_chart() -> Path:
         ("维修反馈模块", (1130, 360, 1410, 450)),
         ("统计查询模块", (1480, 360, 1760, 450)),
     ]
+    root_x, root_y = 950, 210
+    bus_y = 300
+    module_line(draw, (root_x, root_y), (root_x, bus_y))
+    module_line(draw, (220, bus_y), (1620, bus_y))
     for name, box in level1:
         rect(draw, box, name, "#F6F8FB", "#365A9C")
-        arrow(draw, ((760 + 1140) // 2, 210), ((box[0] + box[2]) // 2, box[1]), "调用", text_offset=(-20, -20))
+        cx = (box[0] + box[2]) // 2
+        module_line(draw, (cx, bus_y), (cx, box[1]))
     subs = {
         "报修申请模块": ["录入报修信息", "校验宿舍档案", "生成报修工单"],
         "工单审核模块": ["读取待审工单", "判断是否受理", "退回或提交派工"],
@@ -377,11 +464,14 @@ def draw_structure_chart() -> Path:
     }
     for name, box in level1:
         x1, y1, x2, y2 = box
-        sx = x1
+        cx = (x1 + x2) // 2
+        module_line(draw, (cx, y2), (cx, 610))
         for i, sub in enumerate(subs[name]):
-            sbox = (sx + i * 95, 620 + i % 2 * 120, sx + i * 95 + 220, 700 + i % 2 * 120)
+            top = 610 + i * 120
+            sbox = (cx - 125, top, cx + 125, top + 82)
             rect(draw, sbox, sub, "#FFFFFF", "#7A8AA0", width=2, fnt=F_S)
-            arrow(draw, ((x1 + x2) // 2, y2), ((sbox[0] + sbox[2]) // 2, sbox[1]), None, width=2)
+            if i > 0:
+                module_line(draw, (cx, top - 38), (cx, top), "#7A8AA0")
     draw.text((80, 1060), "转换依据：0 层 DFD 中 P1-P5 映射为一级功能模块，数据存储访问通过模块接口完成。", font=F, fill="#172033")
     return save(img, "05_structure_chart.png")
 
@@ -400,20 +490,20 @@ def draw_flowchart() -> Path:
         "notify": (520, 1580, 980, 1675),
         "end": (610, 1760, 890, 1850),
     }
-    ellipse(draw, boxes["start"], "开始", "#EEF7F0", "#287A45")
-    rect(draw, boxes["input"], "学生录入宿舍号、故障类型、描述、图片")
+    terminator(draw, boxes["start"], "开始")
+    parallelogram(draw, boxes["input"], "输入宿舍号、故障类型、描述、附件")
     diamond(draw, boxes["complete"], "信息是否完整？")
-    rect(draw, (1040, 490, 1370, 565), "提示补全信息")
-    rect(draw, boxes["query"], "查询学生与宿舍档案")
+    parallelogram(draw, (1040, 490, 1370, 565), "输出：提示补全信息", fnt=F_S)
+    process_box(draw, boxes["query"], "查询学生与宿舍档案")
     diamond(draw, boxes["valid_student"], "档案是否匹配？")
-    rect(draw, (160, 870, 455, 945), "拒绝提交并提示原因")
-    rect(draw, boxes["loop"], "循环检查附件格式与数量")
+    parallelogram(draw, (160, 870, 455, 945), "输出：拒绝提交并提示原因", fnt=F_S)
+    process_box(draw, boxes["loop"], "FOR 每个附件：检查格式与大小")
     diamond(draw, boxes["urgent"], "是否紧急故障？")
-    rect(draw, (1040, 1230, 1370, 1305), "设置优先级为高")
-    rect(draw, (160, 1230, 455, 1305), "设置优先级为普通")
-    rect(draw, boxes["save"], "生成工单并写入工单库")
-    rect(draw, boxes["notify"], "通知管理员待审核")
-    ellipse(draw, boxes["end"], "结束", "#EEF7F0", "#287A45")
+    process_box(draw, (1040, 1230, 1370, 1305), "设置优先级为高", fnt=F_S)
+    process_box(draw, (160, 1230, 455, 1305), "设置优先级为普通", fnt=F_S)
+    process_box(draw, boxes["save"], "生成工单并写入工单库")
+    parallelogram(draw, boxes["notify"], "输出：通知管理员待审核")
+    terminator(draw, boxes["end"], "结束")
     centers = {k: ((v[0] + v[2]) // 2, (v[1] + v[3]) // 2) for k, v in boxes.items()}
     for a, b in [("start", "input"), ("input", "complete"), ("query", "valid_student"), ("loop", "urgent"), ("save", "notify"), ("notify", "end")]:
         arrow(draw, (centers[a][0], boxes[a][3]), (centers[b][0], boxes[b][1]), None)
@@ -437,30 +527,33 @@ def draw_ns_chart() -> Path:
     img, draw = new_canvas(1500, 1500, "详细设计图 2：派工处理模块 N-S 图")
     outer = (180, 160, 1320, 1380)
     draw.rectangle(outer, fill="#FFFFFF", outline="#365A9C", width=4)
-    y = 160
-    bands = [
-        (120, "读取待派工工单列表"),
-        (120, "按紧急程度和提交时间排序"),
-        (580, "FOR 每一张待派工工单"),
-        (180, "保存派工记录并通知维修员、学生"),
-        (100, "结束"),
-    ]
-    for h, title in bands:
-        draw.rectangle((180, y, 1320, y + h), outline="#365A9C", width=3)
-        if title != "FOR 每一张待派工工单":
-            draw_center_text(draw, (180, y, 1320, y + h), title, F)
-        else:
-            draw.rectangle((180, y, 1320, y + 70), fill="#EAF1FF", outline="#365A9C", width=3)
-            draw_center_text(draw, (180, y, 1320, y + 70), title, F)
-            inner_top = y + 70
-            draw.rectangle((220, inner_top + 20, 1280, inner_top + 140), outline="#7A8AA0", width=2)
-            draw_center_text(draw, (220, inner_top + 20, 1280, inner_top + 140), "根据故障类型筛选具备技能且空闲的维修员", F_S)
-            diamond(draw, (520, inner_top + 170, 980, inner_top + 300), "是否存在可派维修员？", fnt=F_S)
-            draw.rectangle((220, inner_top + 330, 710, inner_top + 450), outline="#7A8AA0", width=2)
-            draw_center_text(draw, (220, inner_top + 330, 710, inner_top + 450), "否：工单标记为待协调，通知管理员人工处理", F_XS)
-            draw.rectangle((790, inner_top + 330, 1280, inner_top + 450), outline="#7A8AA0", width=2)
-            draw_center_text(draw, (790, inner_top + 330, 1280, inner_top + 450), "是：选择负载最低维修员并生成派工单", F_XS)
-        y += h
+    def ns_box(box: tuple[int, int, int, int], text: str, fill: str = "#FFFFFF", fnt: ImageFont.FreeTypeFont = F) -> None:
+        draw.rectangle(box, fill=fill, outline="#365A9C", width=3)
+        draw_center_text(draw, box, text, fnt)
+
+    ns_box((180, 160, 1320, 280), "读取待派工工单列表")
+    ns_box((180, 280, 1320, 400), "按紧急程度和提交时间排序")
+
+    loop = (180, 400, 1320, 1180)
+    draw.rectangle(loop, fill="#FFFFFF", outline="#365A9C", width=3)
+    ns_box((180, 400, 1320, 480), "FOR 每一张待派工工单", "#EAF1FF")
+    ns_box((230, 520, 1270, 630), "根据故障类型筛选具备技能且空闲的维修员", fnt=F_S)
+
+    # N-S branch block: condition header + two structured branch columns.
+    cond = (230, 670, 1270, 1080)
+    draw.rectangle(cond, fill="#FFFFFF", outline="#7A8AA0", width=3)
+    draw.rectangle((230, 670, 1270, 740), fill="#FFF7E9", outline="#7A8AA0", width=3)
+    draw_center_text(draw, (230, 670, 1270, 740), "IF 存在可派维修员", F_S)
+    draw.line((750, 740, 750, 1080), fill="#7A8AA0", width=3)
+    draw.rectangle((230, 740, 750, 800), fill="#F6F8FB", outline="#7A8AA0", width=2)
+    draw.rectangle((750, 740, 1270, 800), fill="#F6F8FB", outline="#7A8AA0", width=2)
+    draw_center_text(draw, (230, 740, 750, 800), "THEN", F_S)
+    draw_center_text(draw, (750, 740, 1270, 800), "ELSE", F_S)
+    draw_center_text(draw, (250, 820, 730, 1060), "选择负载最低维修员\n生成派工单\n更新工单状态为“维修中”", F_S)
+    draw_center_text(draw, (770, 820, 1250, 1060), "工单标记为“待协调”\n通知管理员人工处理\n保留待派工状态", F_S)
+
+    ns_box((180, 1180, 1320, 1290), "保存派工记录并通知维修员、学生")
+    ns_box((180, 1290, 1320, 1380), "结束")
     return save(img, "07_dispatch_ns_chart.png")
 
 
@@ -486,7 +579,7 @@ def draw_use_case() -> Path:
         "申请返修说明": (1210, 540, 1460, 625),
         "统计查询": (850, 760, 1100, 845),
         "导出报表": (1210, 760, 1460, 845),
-        "上传附件": (470, 760, 720, 845),
+        "填写报修信息": (470, 760, 720, 845),
     }
     for name, box in cases.items():
         ellipse(draw, box, name, "#F6F8FB", "#365A9C", fnt=F_S)
@@ -503,12 +596,9 @@ def draw_use_case() -> Path:
     for target in ["统计查询", "导出报表"]:
         _, y1, x2, y2 = cases[target]
         draw.line((1710, 760, x2, (y1 + y2) // 2), fill="#344054", width=2)
-    dashed_line(draw, (595, 325), (595, 760))
-    draw.text((610, 525), "<<include>>", font=F_XS, fill="#475467")
-    dashed_line(draw, (1100, 800), (1210, 800))
-    draw.text((1125, 770), "<<include>>", font=F_XS, fill="#475467")
-    dashed_line(draw, (1210, 582), (1100, 432))
-    draw.text((1125, 520), "<<extend>>", font=F_XS, fill="#475467")
+    dashed_arrow(draw, (595, 325), (595, 760), "<<include>>", text_offset=(15, -8))
+    dashed_arrow(draw, (1210, 800), (1100, 800), "<<extend>>", text_offset=(-95, -30))
+    dashed_arrow(draw, (1335, 540), (1335, 475), "<<extend>>", text_offset=(18, -6))
     return save(img, "08_use_case_diagram.png")
 
 
