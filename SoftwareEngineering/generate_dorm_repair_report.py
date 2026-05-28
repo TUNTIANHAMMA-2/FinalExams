@@ -346,51 +346,59 @@ def actor(draw: ImageDraw.ImageDraw, center: tuple[int, int], label: str) -> Non
 
 
 def draw_class_diagram() -> Path:
-    img, draw = new_canvas(1800, 1220, "宿舍报修管理系统 UML 类图")
+    img, draw = new_canvas(2300, 1550, "宿舍报修管理系统 UML 类图")
 
     classes = {
-        "学生 Student": (80, 130, 470, 380, ["学号 studentId", "姓名 name", "宿舍号 dormNo", "联系方式 phone"], ["提交报修()", "查询进度()", "评价维修()"]),
-        "报修工单 RepairOrder": (700, 130, 1120, 430, ["工单号 orderId", "故障类型 type", "故障描述 description", "状态 status", "提交时间 createdAt"], ["创建工单()", "分派维修员()", "更新状态()", "关闭工单()"]),
-        "维修员 Maintainer": (1340, 130, 1730, 380, ["工号 maintainerId", "姓名 name", "专业技能 skill", "联系电话 phone"], ["接单()", "填写维修结果()", "申请退回()"]),
-        "宿舍 Dormitory": (80, 650, 470, 880, ["宿舍号 dormNo", "楼栋 building", "房间号 roomNo", "床位数 capacity"], ["查询宿舍信息()", "维护宿舍资料()"]),
-        "派工记录 DispatchRecord": (700, 650, 1120, 910, ["派工号 dispatchId", "派工时间 dispatchTime", "到场时间 arriveTime", "完成时间 finishTime"], ["记录派工()", "记录完成()", "生成统计()"]),
-        "管理员 Admin": (1340, 650, 1730, 880, ["账号 adminId", "姓名 name", "角色 role"], ["审核工单()", "派工()", "维护基础数据()", "统计分析()"]),
+        "学生 Student": (90, 150, 590, 470, ["学号 studentId", "姓名 name", "宿舍号 dormNo", "联系方式 phone"], ["提交报修()", "查询进度()", "评价维修()"]),
+        "报修工单 RepairOrder": (900, 140, 1400, 520, ["工单号 orderId", "故障类型 type", "故障描述 description", "状态 status", "提交时间 createdAt"], ["创建工单()", "分派维修员()", "更新状态()", "关闭工单()"]),
+        "维修员 Maintainer": (1710, 150, 2210, 470, ["工号 maintainerId", "姓名 name", "专业技能 skill", "联系电话 phone"], ["接单()", "填写维修结果()", "申请退回()"]),
+        "宿舍 Dormitory": (90, 930, 590, 1220, ["宿舍号 dormNo", "楼栋 building", "房间号 roomNo", "床位数 capacity"], ["查询宿舍信息()", "维护宿舍资料()"]),
+        "派工记录 DispatchRecord": (900, 900, 1400, 1250, ["派工号 dispatchId", "派工时间 dispatchTime", "到场时间 arriveTime", "完成时间 finishTime"], ["记录派工()", "记录完成()", "生成统计()"]),
+        "管理员 Admin": (1710, 930, 2210, 1220, ["账号 adminId", "姓名 name", "角色 role"], ["审核工单()", "派工()", "维护基础数据()", "统计分析()"]),
     }
 
     def class_box(box: tuple[int, int, int, int], name: str, attrs: list[str], methods: list[str]) -> None:
         x1, y1, x2, y2 = box
         draw.rounded_rectangle(box, radius=8, fill="#F8FAFC", outline="#365A9C", width=3)
-        draw.rectangle((x1, y1, x2, y1 + 48), fill="#EAF1FF", outline="#365A9C", width=3)
-        draw_center_text(draw, (x1, y1, x2, y1 + 48), name, F_H)
-        split = y1 + 48 + 28 * len(attrs) + 18
+        header_h = 56
+        draw.rectangle((x1, y1, x2, y1 + header_h), fill="#EAF1FF", outline="#365A9C", width=3)
+        draw_center_text(draw, (x1, y1, x2, y1 + header_h), name, F_H)
+        attr_line = 32
+        method_line = 32
+        split = y1 + header_h + attr_line * len(attrs) + 22
         draw.line((x1, split, x2, split), fill="#365A9C", width=2)
-        y = y1 + 62
+        y = y1 + header_h + 16
         for item in attrs:
             draw.text((x1 + 18, y), "+ " + item, font=F_S, fill="#172033")
-            y += 28
-        y = split + 14
+            y += attr_line
+        y = split + 16
         for item in methods:
             draw.text((x1 + 18, y), "+ " + item, font=F_S, fill="#172033")
-            y += 28
+            y += method_line
 
     for name, (x1, y1, x2, y2, attrs, methods) in classes.items():
         class_box((x1, y1, x2, y2), name, attrs, methods)
 
     def assoc(points: Sequence[tuple[int, int]], label: str, label_pos: tuple[int, int], mults: Sequence[tuple[str, tuple[int, int]]]) -> None:
-        polyline(draw, points, "#344054", 3)
+        polyline(draw, points, "#344054", 4)
         label_text(draw, label_pos, label)
         for text, pos in mults:
             draw.text(pos, text, font=F_XS, fill="#344054")
 
-    assoc([(470, 255), (700, 255)], "提交", (565, 225), [("1", (482, 228)), ("0..*", (642, 228))])
-    assoc([(1120, 255), (1340, 255)], "分派给", (1216, 225), [("0..*", (1136, 228)), ("0..1", (1285, 228))])
-    assoc([(275, 650), (275, 520), (235, 520), (235, 380)], "入住", (198, 514), [("1", (250, 622)), ("1..*", (242, 392))])
-    assoc([(910, 430), (910, 650)], "产生", (930, 525), [("1", (922, 445)), ("0..1", (922, 612))])
-    assoc([(1120, 760), (1340, 760)], "管理", (1215, 728), [("0..*", (1136, 732)), ("1", (1312, 732))])
-    assoc([(1120, 820), (1235, 820), (1235, 390), (1340, 390)], "处理", (1248, 570), [("0..*", (1135, 792)), ("1", (1312, 400))])
-    assoc([(470, 760), (700, 760)], "关联宿舍", (548, 728), [("1", (482, 732)), ("0..*", (642, 732))])
+    # Top-row relationships: short horizontal channels between class boxes.
+    assoc([(590, 310), (900, 310)], "提交", (718, 275), [("1", (605, 282)), ("0..*", (838, 282))])
+    assoc([(1400, 310), (1710, 310)], "分派给", (1510, 275), [("0..*", (1415, 282)), ("0..1", (1642, 282))])
 
-    draw.text((80, 1070), "说明：类图使用三栏类框、关联名称和多重度；学生提交工单，管理员派工，维修员处理并形成派工记录。", font=F, fill="#172033")
+    # Column relationships: vertical channels with labels outside class frames.
+    assoc([(340, 470), (340, 930)], "入住", (365, 675), [("1", (352, 492)), ("1..*", (352, 895))])
+    assoc([(1150, 520), (1150, 900)], "产生", (1175, 685), [("1", (1162, 540)), ("0..1", (1162, 862))])
+
+    # Bottom-row and right-side relationships use separate lanes to prevent crossings.
+    assoc([(590, 1075), (900, 1075)], "关联宿舍", (690, 1038), [("1", (606, 1048)), ("0..*", (840, 1048))])
+    assoc([(1400, 1105), (1710, 1105)], "管理", (1518, 1068), [("0..*", (1418, 1078)), ("1", (1678, 1078))])
+    assoc([(1960, 470), (1960, 700), (1465, 700), (1465, 990), (1400, 990)], "处理", (1680, 668), [("1", (1972, 492)), ("0..*", (1415, 1002))])
+
+    draw.text((90, 1390), "说明：类图使用三栏类框、关联名称和多重度；连线按顶部、底部、右侧独立通道布置，避免穿越类框。", font=F, fill="#172033")
     return save(img, "01_uml_class_diagram.png")
 
 
@@ -414,42 +422,53 @@ def draw_context_dfd() -> Path:
 
 
 def draw_level0_dfd() -> Path:
-    img, draw = new_canvas(2100, 1450, "0 层 DFD：宿舍报修管理系统")
-    rect(draw, (70, 170, 270, 270), "学生", "#FFF7E9", "#B06B00", fnt=F_S)
-    rect(draw, (70, 1040, 270, 1140), "管理员", "#FFF7E9", "#B06B00", fnt=F_S)
-    rect(draw, (1830, 170, 2030, 270), "维修员", "#FFF7E9", "#B06B00", fnt=F_S)
-    rect(draw, (1830, 1040, 2030, 1140), "后勤部门", "#FFF7E9", "#B06B00", fnt=F_S)
+    img, draw = new_canvas(2600, 1750, "0 层 DFD：宿舍报修管理系统")
+    rect(draw, (90, 220, 350, 340), "学生", "#FFF7E9", "#B06B00", fnt=F)
+    rect(draw, (90, 820, 350, 940), "管理员", "#FFF7E9", "#B06B00", fnt=F)
+    rect(draw, (2250, 220, 2510, 340), "维修员", "#FFF7E9", "#B06B00", fnt=F)
+    rect(draw, (2250, 1280, 2510, 1400), "后勤部门", "#FFF7E9", "#B06B00", fnt=F)
 
-    ellipse(draw, (430, 150, 750, 300), "P1\n报修申请受理", "#EEF7FF", "#275EAD", fnt=F)
-    ellipse(draw, (430, 580, 750, 730), "P2\n工单审核", "#EEF7FF", "#275EAD", fnt=F)
-    ellipse(draw, (930, 580, 1250, 730), "P3\n派工处理", "#EEF7FF", "#275EAD", fnt=F)
-    ellipse(draw, (1380, 150, 1700, 300), "P4\n维修反馈确认", "#EEF7FF", "#275EAD", fnt=F)
-    ellipse(draw, (1380, 1030, 1700, 1180), "P5\n统计查询", "#EEF7FF", "#275EAD", fnt=F)
+    ellipse(draw, (560, 190, 920, 360), "P1\n报修申请受理", "#EEF7FF", "#275EAD", fnt=F)
+    ellipse(draw, (560, 720, 920, 890), "P2\n工单审核", "#EEF7FF", "#275EAD", fnt=F)
+    ellipse(draw, (1180, 720, 1540, 890), "P3\n派工处理", "#EEF7FF", "#275EAD", fnt=F)
+    ellipse(draw, (1660, 190, 2020, 360), "P4\n维修反馈确认", "#EEF7FF", "#275EAD", fnt=F)
+    ellipse(draw, (1660, 1180, 2020, 1350), "P5\n统计查询", "#EEF7FF", "#275EAD", fnt=F)
 
-    dfd_store(draw, (430, 960, 760, 1080), "D1 学生/宿舍档案")
-    dfd_store(draw, (880, 960, 1210, 1080), "D2 报修工单库")
-    dfd_store(draw, (1320, 960, 1650, 1080), "D3 派工/维修记录")
+    dfd_store(draw, (420, 1230, 820, 1360), "D1 学生/宿舍档案")
+    dfd_store(draw, (980, 1230, 1380, 1360), "D2 报修工单库")
+    dfd_store(draw, (1460, 1450, 1880, 1580), "D3 派工/维修记录")
 
-    poly_arrow(draw, [(270, 220), (430, 220)], "报修申请", (315, 188))
-    poly_arrow(draw, [(750, 225), (1380, 225)], "已登记工单", (1010, 188))
-    poly_arrow(draw, [(1540, 300), (1540, 760), (1510, 760), (1510, 1030)], "完成信息", (1556, 640))
-    poly_arrow(draw, [(1830, 220), (1700, 220)], "维修结果", (1735, 188))
-    poly_arrow(draw, [(1700, 260), (1830, 260)], "派工任务", (1735, 276))
-    poly_arrow(draw, [(590, 300), (590, 580)], "待审核工单", (610, 425))
-    poly_arrow(draw, [(750, 655), (930, 655)], "有效工单", (795, 622))
-    poly_arrow(draw, [(1250, 655), (1510, 655), (1510, 300), (1830, 300)], "派工单", (1530, 470))
-    poly_arrow(draw, [(1830, 1085), (1700, 1085)], "报表需求", (1730, 1052))
-    poly_arrow(draw, [(1380, 1120), (270, 1120)], "统计报表", (730, 1136))
-    poly_arrow(draw, [(270, 1070), (360, 1070), (360, 700), (520, 700)], "审核意见", (372, 860))
-    poly_arrow(draw, [(590, 730), (590, 960)], "查验档案", (610, 835))
-    poly_arrow(draw, [(1035, 730), (1035, 960)], "更新工单", (1055, 835))
-    poly_arrow(draw, [(1510, 300), (1510, 960)], "写入维修记录", (1528, 805))
-    poly_arrow(draw, [(1210, 1005), (1380, 1065)], "工单数据", (1260, 995))
-    poly_arrow(draw, [(1650, 1005), (1380, 1125)], "维修数据", (1512, 1058))
-    poly_arrow(draw, [(880, 1000), (805, 1000), (805, 690), (750, 690)], "读取工单", (770, 835))
-    poly_arrow(draw, [(760, 1045), (370, 1045), (370, 665), (430, 665)], "档案数据", (382, 835))
+    # Top submission and registration lane.
+    poly_arrow(draw, [(350, 265), (560, 265)], "报修申请", (410, 232))
+    poly_arrow(draw, [(560, 315), (350, 315)], "受理结果/进度", (382, 330))
+    poly_arrow(draw, [(920, 270), (1660, 270)], "已登记工单", (1180, 232))
+    poly_arrow(draw, [(740, 360), (740, 720)], "待审核工单", (760, 520))
 
-    draw.text((70, 1320), "DFD 说明：矩形为外部实体，椭圆为加工，双竖线矩形为数据存储，箭头为数据流；未混用流程图控制符号。", font=F, fill="#172033")
+    # Middle audit and dispatch lane.
+    poly_arrow(draw, [(350, 850), (560, 850)], "审核意见", (405, 812))
+    poly_arrow(draw, [(920, 805), (1180, 805)], "有效工单", (1018, 770))
+    poly_arrow(draw, [(1540, 780), (2120, 780), (2120, 265), (2250, 265)], "派工单", (2136, 500))
+
+    # Maintainer and repair feedback lane.
+    poly_arrow(draw, [(2020, 315), (2250, 315)], "派工任务", (2100, 330))
+    poly_arrow(draw, [(2250, 255), (2020, 255)], "维修结果", (2110, 218))
+    poly_arrow(draw, [(1840, 360), (1840, 1180)], "完成信息", (1860, 750))
+
+    # Data store lanes: use separated vertical lanes to avoid crossings.
+    poly_arrow(draw, [(640, 890), (640, 1230)], "查验档案", (660, 1040))
+    poly_arrow(draw, [(520, 1230), (520, 955), (560, 845)], "档案数据", (430, 1040))
+    poly_arrow(draw, [(1100, 890), (1100, 1230)], "更新工单", (1120, 1040))
+    poly_arrow(draw, [(980, 1270), (900, 1270), (900, 840), (920, 840)], "读取工单", (840, 1040))
+    poly_arrow(draw, [(1660, 335), (1600, 335), (1600, 1450)], "写入维修记录", (1618, 930))
+
+    # Statistics lane: route around stores through outer bottom channel.
+    poly_arrow(draw, [(1380, 1268), (1660, 1245)], "工单数据", (1460, 1215))
+    poly_arrow(draw, [(1670, 1450), (1670, 1400), (1840, 1400), (1840, 1350)], "维修数据", (1710, 1368))
+    poly_arrow(draw, [(2250, 1315), (2020, 1265)], "报表需求", (2110, 1280))
+    poly_arrow(draw, [(2020, 1308), (2110, 1308), (2110, 1600), (360, 1600), (360, 900), (350, 900)], "统计报表", (930, 1616))
+    poly_arrow(draw, [(2020, 1335), (2250, 1365)], "统计报表", (2108, 1372))
+
+    draw.text((90, 1685), "DFD 说明：矩形为外部实体，椭圆为加工，双竖线矩形为数据存储，箭头为数据流；节点按业务阶段分层排列，数据流走独立正交通道。", font=F, fill="#172033")
     return save(img, "03_level0_dfd.png")
 
 

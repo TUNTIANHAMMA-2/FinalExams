@@ -27,3 +27,10 @@ Reviewed against the Software Engineering assignment requirements and the curren
 
 * 图 1：relationship lines were rerouted as cleaner orthogonal/short line segments; labels and multiplicities were moved away from class-box borders and text compartments.
 * 图 3：long diagonal DFD flows were rerouted as orthogonal paths; labels were manually placed away from process/data-store frames and arrowheads.
+
+## Topology Fix
+
+* 图 1：expanded the canvas and class nodes into a three-column/two-row academic layout; relationship channels now run above, below, or outside class boxes instead of through them.
+* 图 1：class compartments were enlarged so all attributes and methods remain inside their class borders.
+* 图 3：expanded the canvas and rebuilt the DFD as layered lanes: external entities on the sides, P1/P4 at the top, P2/P3 in the middle, data stores at the bottom, and P5 in the lower-right statistics area.
+* 图 3：long diagonal data flows were replaced with orthogonal routing channels; statistics and repair-record flows use outer lanes to avoid crossing process and data-store nodes.
