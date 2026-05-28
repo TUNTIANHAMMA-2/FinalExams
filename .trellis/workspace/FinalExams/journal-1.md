@@ -137,3 +137,36 @@ Reviewed all generated SoftwareEngineering diagrams against UML, DFD, flowchart,
 ### Next Steps
 
 - None - task complete
+
+
+## Session 5: Polish diagrams one and three
+
+**Date**: 2026-05-28
+**Task**: Polish diagrams one and three
+**Branch**: `master`
+
+### Summary
+
+Adjusted UML class diagram and level-0 DFD line routing, label placement, and box spacing; regenerated compatible Word outputs.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3a5f633` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
