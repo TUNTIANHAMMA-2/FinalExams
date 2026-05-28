@@ -523,6 +523,20 @@ def draw_all_diagrams() -> dict[str, Path]:
     }
 
 
+PROJECT_PURPOSE = [
+    "巩固软件工程核心知识点：将课堂所学的需求分析、总体设计、详细设计、编码、测试等理论知识，转化为实际操作，熟练掌握 DFD、UML 图（类图、状态图、用例图）、系统结构图、详细设计图形（流程图 / 盒图 / PAD 图）等工具的使用。",
+    "培养完整的软件设计思维：学会从需求出发，逐步推进系统设计、编码与测试，理解各阶段的衔接逻辑，建立“需求—设计—编码—测试”的完整闭环思维，避免设计与实现脱节。",
+    "提升实操与问题解决能力：通过自选系统、完成各环节设计与编码，锻炼模块划分、逻辑梳理、测试用例设计的实操能力，学会解决设计过程中出现的图形规范、逻辑矛盾等实际问题。",
+]
+
+
+TEMPLATE_REQUIREMENTS = [
+    "自选系统限定为中小型事务管理信息系统，从以下四类中选择其一：图书借阅系统、学生教务管理系统、超市订单管理系统、宿舍报修管理系统，禁止自定义其他简单系统。",
+    "所有图形（E-R图、类图、DFD、状态图、系统结构图、流程图/盒图/PAD图、用例图）需符合软件工程绘图规范，标注清晰、逻辑严谨。",
+    "所有设计内容需前后一致，编码、测试需对应前面设计的模块/功能，不得脱节。",
+]
+
+
 REPORT_SECTIONS: list[tuple[str, list[str]]] = [
     (
         "一、需求分析",
@@ -658,15 +672,16 @@ def add_table(doc: Document, rows: Sequence[Sequence[str]]) -> None:
 
 def set_doc_style(doc: Document) -> None:
     section = doc.sections[0]
-    section.top_margin = Cm(2.5)
-    section.bottom_margin = Cm(2.5)
-    section.left_margin = Cm(2.8)
-    section.right_margin = Cm(2.6)
+    section.top_margin = Cm(2.45)
+    section.bottom_margin = Cm(2.2)
+    section.left_margin = Cm(2.7)
+    section.right_margin = Cm(2.5)
 
     styles = doc.styles
     styles["Normal"].font.name = "宋体"
     styles["Normal"]._element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
     styles["Normal"].font.size = Pt(12)
+    styles["Normal"].paragraph_format.line_spacing = 1.5
 
     for style_name, size in [("Heading 1", 16), ("Heading 2", 14), ("Heading 3", 12)]:
         style = styles[style_name]
@@ -676,16 +691,65 @@ def set_doc_style(doc: Document) -> None:
         style.font.bold = True
         style.font.color.rgb = RGBColor(0, 0, 0)
 
+    footer = section.footer.paragraphs[0]
+    footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    footer.add_run("- ")
+    fld_begin = OxmlElement("w:fldChar")
+    fld_begin.set(qn("w:fldCharType"), "begin")
+    instr = OxmlElement("w:instrText")
+    instr.set(qn("xml:space"), "preserve")
+    instr.text = "PAGE"
+    fld_end = OxmlElement("w:fldChar")
+    fld_end.set(qn("w:fldCharType"), "end")
+    footer._p.append(fld_begin)
+    footer._p.append(instr)
+    footer._p.append(fld_end)
+    footer.add_run(" -")
 
-def add_paragraph(doc: Document, text: str, first_line: bool = True) -> None:
+
+def add_paragraph(doc: Document, text: str, first_line: bool = True, size: float = 12, bold: bool = False) -> None:
     p = doc.add_paragraph()
     p.paragraph_format.line_spacing = 1.5
     if first_line:
         p.paragraph_format.first_line_indent = Cm(0.74)
     run = p.add_run(text)
+    run.bold = bold
     run.font.name = "宋体"
     run._element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
-    run.font.size = Pt(12)
+    run.font.size = Pt(size)
+
+
+def add_centered_run(doc: Document, text: str, size: float, font_name: str = "宋体", bold: bool = False, spacing_after: float = 0) -> None:
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.paragraph_format.space_after = Pt(spacing_after)
+    r = p.add_run(text)
+    r.bold = bold
+    r.font.name = font_name
+    r._element.rPr.rFonts.set(qn("w:eastAsia"), font_name)
+    r.font.size = Pt(size)
+
+
+def add_field_line(doc: Document, label: str, value: str = "", size: float = 16) -> None:
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.paragraph_format.line_spacing = 1.8
+    display = f"{label}{value}" if value else f"{label}{'_' * 22}"
+    r = p.add_run(display)
+    r.font.name = "宋体"
+    r._element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
+    r.font.size = Pt(size)
+
+
+def add_section_label(doc: Document, text: str) -> None:
+    p = doc.add_paragraph()
+    p.paragraph_format.space_before = Pt(8)
+    p.paragraph_format.space_after = Pt(4)
+    r = p.add_run(text)
+    r.bold = True
+    r.font.name = "黑体"
+    r._element.rPr.rFonts.set(qn("w:eastAsia"), "黑体")
+    r.font.size = Pt(14)
 
 
 def add_code_block(doc: Document, code: str) -> None:
@@ -713,46 +777,42 @@ def add_figure(doc: Document, title: str, path: Path, width_cm: float = 15.5) ->
 
 
 def add_cover(doc: Document) -> None:
+    for _ in range(1):
+        doc.add_paragraph()
+    add_centered_run(doc, "Sichuan Top Vocational College of Information Technology", 14, "Times New Roman", False, 8)
     for _ in range(2):
         doc.add_paragraph()
-    p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r = p.add_run("《软件工程导论》期末考查报告")
-    r.bold = True
-    r.font.name = "黑体"
-    r._element.rPr.rFonts.set(qn("w:eastAsia"), "黑体")
-    r.font.size = Pt(24)
+    add_centered_run(doc, "期  末  考  查  报  告", 26, "黑体", True, 18)
+    add_centered_run(doc, "（《软件工程导论》）", 18, "宋体", False, 30)
 
-    p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r = p.add_run("题目：宿舍报修管理系统分析与设计")
-    r.font.name = "黑体"
-    r._element.rPr.rFonts.set(qn("w:eastAsia"), "黑体")
-    r.font.size = Pt(18)
+    add_field_line(doc, "姓    名： ")
+    add_field_line(doc, "学    号： ")
+    add_field_line(doc, "系    别： ", "_信息工程学院_")
+    add_field_line(doc, "专    业： ", "_软件技术_    _")
+    add_field_line(doc, "年    级： ", "___2024级_____")
+    add_field_line(doc, "班    级： ", "___ ___________")
+    add_field_line(doc, "指导教师： ", "___项叙淋_ ____")
 
-    for _ in range(3):
+    for _ in range(2):
         doc.add_paragraph()
-
-    fields = [
-        "学    院：________________________",
-        "专    业：________________________",
-        "班    级：________________________",
-        "姓    名：________________________",
-        "学    号：________________________",
-        "指导教师：________________________",
-        "完成日期：2026 年 ____ 月 ____ 日",
-    ]
-    for field in fields:
-        p = doc.add_paragraph()
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        r = p.add_run(field)
-        r.font.name = "宋体"
-        r._element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
-        r.font.size = Pt(16)
+    add_centered_run(doc, "2026 年    月    日 至   2026 年   月   日", 14, "宋体")
+    add_centered_run(doc, "所 在 单 位 ：  __         _级    系    专业    班", 12, "宋体")
     doc.add_page_break()
 
 
 def add_main_report(doc: Document, images: dict[str, Path]) -> None:
+    add_section_label(doc, "项目名称：")
+    add_paragraph(doc, "宿舍报修管理系统分析与设计", first_line=False, size=12)
+
+    add_section_label(doc, "项目目的：")
+    for idx, para in enumerate(PROJECT_PURPOSE, 1):
+        add_paragraph(doc, f"{idx}、{para}", first_line=False, size=12)
+
+    add_section_label(doc, "项目内容及要求：")
+    add_paragraph(doc, "说明：", first_line=False, size=12, bold=True)
+    for idx, para in enumerate(TEMPLATE_REQUIREMENTS, 1):
+        add_paragraph(doc, f"{idx}、{para}", first_line=False, size=12)
+
     doc.add_heading("一、需求分析", level=1)
     for para in REPORT_SECTIONS[0][1]:
         add_paragraph(doc, para)
@@ -801,6 +861,12 @@ def add_main_report(doc: Document, images: dict[str, Path]) -> None:
 
     doc.add_heading("结论", level=1)
     add_paragraph(doc, "宿舍报修管理系统围绕报修工单形成完整业务闭环。需求分析中的类图、DFD 和状态图明确了系统对象、数据流和状态变化；总体设计将 0 层 DFD 转换为层次化功能结构；详细设计、PDL 伪代码和测试用例均围绕报修申请受理与派工处理展开，保证了前后设计内容的一致性。系统能够满足学生便捷报修、管理员规范派工、维修员及时反馈和后勤部门统计管理的基本需求。")
+
+    add_section_label(doc, "个人总结：")
+    add_paragraph(doc, "通过本次宿舍报修管理系统的分析与设计，我进一步理解了软件工程各阶段之间的衔接关系。需求分析阶段明确系统边界和数据流，总体设计阶段完成模块划分，详细设计阶段细化关键模块逻辑，编码与测试阶段则验证设计是否可实现、是否前后一致。本次设计也让我认识到，图形规范、数据命名和测试用例之间必须保持一致，否则容易出现设计与实现脱节的问题。", first_line=True)
+    doc.add_paragraph()
+    add_paragraph(doc, "学生签名：____________________", first_line=False)
+    add_paragraph(doc, "指导教师签字（签章）：____________________", first_line=False)
 
 
 def write_markdown(images: dict[str, Path]) -> None:
