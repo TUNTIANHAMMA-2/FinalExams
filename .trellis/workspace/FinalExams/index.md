@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 5
+- **Total Sessions**: 6
 - **Last Active**: 2026-05-28
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~172 | Active |
+| `journal-1.md` | ~205 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 6 | 2026-05-28 | Fix diagram layout topology | `2f65d07` | `master` |
 | 5 | 2026-05-28 | Polish diagrams one and three | `3a5f633` | `master` |
 | 4 | 2026-05-28 | Review and improve report diagrams | `09bd462` | `master` |
 | 3 | 2026-05-28 | Fix compatible SoftwareEngineering report docx | `3b6542d` | `master` |

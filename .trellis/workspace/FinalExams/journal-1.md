@@ -170,3 +170,36 @@ Adjusted UML class diagram and level-0 DFD line routing, label placement, and bo
 ### Next Steps
 
 - None - task complete
+
+
+## Session 6: Fix diagram layout topology
+
+**Date**: 2026-05-28
+**Task**: Fix diagram layout topology
+**Branch**: `master`
+
+### Summary
+
+Expanded and rerouted figures 1 and 3 to prevent text overflow, line crossings, and frame collisions; regenerated valid Word outputs.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2f65d07` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
