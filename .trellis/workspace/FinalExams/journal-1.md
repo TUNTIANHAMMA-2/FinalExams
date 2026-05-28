@@ -38,3 +38,36 @@ Generated an offline-openable Word report for the dorm repair management system,
 ### Next Steps
 
 - None - task complete
+
+
+## Session 2: Apply original SoftwareEngineering report template
+
+**Date**: 2026-05-28
+**Task**: Apply original SoftwareEngineering report template
+**Branch**: `master`
+
+### Summary
+
+Regenerated the dorm repair report with the original .doc template cover text, project sections, signature area, and page footer style while preserving embedded diagrams and offline Word output.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f350854` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
