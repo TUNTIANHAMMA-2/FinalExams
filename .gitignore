@@ -1,3 +1,18 @@
 __pycache__/
 *.pyc
 .DS_Store
+
+# Local AI/Trellis workspace and agent configuration
+.agents/
+.claude/
+.codex/
+.gemini/
+.kiro/
+.trellis/
+AGENTS.md
+
+# Generated/intermediate report assets
+SoftwareEngineering/generated/
+SoftwareEngineering/generate_dorm_repair_report.py
+SoftwareEngineering/*.manual-import-backup.doc
+SoftwareEngineering/__pycache__/
