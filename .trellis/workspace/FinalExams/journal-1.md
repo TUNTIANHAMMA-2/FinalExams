@@ -203,3 +203,37 @@ Expanded and rerouted figures 1 and 3 to prevent text overflow, line crossings, 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 7: Fix final doc embedded images
+
+**Date**: 2026-05-29
+**Task**: Fix final doc embedded images
+**Branch**: `master`
+
+### Summary
+
+Generated the final offline .doc as Word/WPS-compatible RTF with 8 embedded PNG diagrams, refreshed the docx backups, validated no external INCLUDEPICTURE or GitHub links remain, and archived the Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `16d975b` | (see git log) |
+| `b0e697b` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
