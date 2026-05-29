@@ -12,7 +12,9 @@ __pycache__/
 AGENTS.md
 
 # Generated/intermediate report assets
-SoftwareEngineering/generated/
+SoftwareEngineering/generated/*
+!SoftwareEngineering/generated/images/
+!SoftwareEngineering/generated/images/*.png
 SoftwareEngineering/generate_dorm_repair_report.py
 SoftwareEngineering/*.manual-import-backup.doc
 SoftwareEngineering/__pycache__/
