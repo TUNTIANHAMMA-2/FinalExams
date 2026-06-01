@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+data/attendance.csv
+data/encodings/*.json
+data/exports/*
+!data/exports/.gitkeep
