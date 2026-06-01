@@ -2,17 +2,21 @@
 """Generate RhizoDelta course-report deliverables.
 
 The generated reports are based on the reviewed RhizoDelta documentation and
-source layout. They intentionally keep the Vue course cover/title while
-describing the actual React frontend implementation, per the user's course
-submission rule.
+source layout. The Vue course report follows the local course-design template
+structure and formatting requirements while mapping the actual React frontend
+implementation to the course's Vue.js assessment points.
 """
 
 from __future__ import annotations
 
 import base64
 import html
+import json
+import os
 import shutil
+import subprocess
 import sys
+from copy import deepcopy
 from pathlib import Path
 from typing import Iterable
 
@@ -20,27 +24,35 @@ sys.path.insert(0, "/tmp/finalexams-pydeps")
 
 from PIL import Image, ImageDraw, ImageFont
 from docx import Document
-from docx.enum.section import WD_SECTION_START
 from docx.enum.table import WD_TABLE_ALIGNMENT, WD_CELL_VERTICAL_ALIGNMENT
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING, WD_TAB_ALIGNMENT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Cm, Pt, RGBColor
+from docx.text.paragraph import Paragraph
 
 
 ROOT = Path(__file__).resolve().parent
 JAVAEE_DIR = ROOT / "javaee-web-app"
 VUE_DIR = ROOT / "vuejs-app-dev"
+VUE_TEMPLATE_DOC = VUE_DIR / "final-course-design-report-template.doc"
 RHIZODELTA_REPO_URL = "https://github.com/TUNTIANHAMMA-2/RhizoDelta"
 RHIZODELTA_LOCAL_PATH = "/home/tthm/workspace/RhizoDelta"
 
 FONT_PATH = Path("/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc")
 if not FONT_PATH.exists():
     FONT_PATH = Path("/usr/share/fonts/opentype/unifont/unifont.otf")
+CODE_FONT_PATH = Path("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf")
+if not CODE_FONT_PATH.exists():
+    CODE_FONT_PATH = FONT_PATH
 
 
 def font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
     return ImageFont.truetype(str(FONT_PATH), size)
+
+
+def code_font(size: int) -> ImageFont.FreeTypeFont:
+    return ImageFont.truetype(str(CODE_FONT_PATH), size)
 
 
 F_TITLE = font(36)
@@ -48,6 +60,16 @@ F_H = font(26)
 F = font(21)
 F_S = font(18)
 F_XS = font(15)
+F_CODE = code_font(15)
+F_CODE_CJK = font(15)
+
+BODY_FONT_SIZE = 12
+BODY_FIRST_LINE_INDENT = Pt(24)
+FIXED_LINE_SPACING = Pt(22)
+HEADING1_SPACE = Pt(18)
+HEADING2_SPACE = Pt(9)
+CODE_IMAGE_WIDTH = Cm(10.8)
+REPORT_IMAGE_WIDTH = Cm(14.2)
 
 
 def text_size(draw: ImageDraw.ImageDraw, text: str, fnt: ImageFont.FreeTypeFont) -> tuple[int, int]:
@@ -260,6 +282,284 @@ def backend_flow_diagram(out_dir: Path) -> Path:
     return save_diagram(img, out_dir, "04_backend_async_flow.png")
 
 
+def code_snapshot_image(out_dir: Path, name: str, title: str, code: str) -> Path:
+    width = 1350
+    line_height = 22
+    padding_x = 50
+    padding_y = 58
+    lines = code.strip("\n").splitlines()
+    height = padding_y * 2 + 44 + len(lines) * line_height
+    img = Image.new("RGB", (width, height), "#FFFFFF")
+    draw = ImageDraw.Draw(img)
+    draw.rectangle((0, 0, width - 1, height - 1), outline="#D7DBE8", width=2)
+    draw.rounded_rectangle((28, 24, width - 28, height - 24), radius=8, fill="#FFFFFF", outline="#CBD5E1", width=2)
+    draw.text((padding_x, 42), title, font=F_S, fill="#101827")
+    y = 88
+    for idx, line in enumerate(lines, 1):
+        draw_code_text(draw, (padding_x, y), f"{idx:>2}  {line}", fill="#172033")
+        y += line_height
+    return save_diagram(img, out_dir, name)
+
+
+def draw_code_text(draw: ImageDraw.ImageDraw, xy: tuple[int, int], text: str, fill: str) -> None:
+    x, y = xy
+    for char in text:
+        fnt = F_CODE_CJK if ord(char) > 127 else F_CODE
+        draw.text((x, y), char, font=fnt, fill=fill)
+        x += text_size(draw, char, fnt)[0]
+
+
+def frontend_package_versions() -> dict[str, str]:
+    package_json = Path(RHIZODELTA_LOCAL_PATH) / "frontend" / "package.json"
+    package = json.loads(package_json.read_text(encoding="utf-8"))
+    deps = package.get("dependencies", {}) | package.get("devDependencies", {})
+    return {name: deps.get(name, "未声明").lstrip("^~") for name in deps}
+
+
+def source_excerpt_snapshot(
+    out_dir: Path,
+    name: str,
+    title: str,
+    source: Path,
+    ranges: list[tuple[int, int]],
+) -> Path:
+    lines = source.read_text(encoding="utf-8").splitlines()
+    excerpt: list[str] = []
+    for idx, (start, end) in enumerate(ranges):
+        if idx:
+            excerpt.append("...")
+        for line_no in range(start, end + 1):
+            if 1 <= line_no <= len(lines):
+                excerpt.append(f"{line_no:>3}  {lines[line_no - 1]}")
+    return code_snapshot_image(
+        out_dir,
+        name,
+        f"{title}（{source.relative_to(Path(RHIZODELTA_LOCAL_PATH) / 'frontend')}）",
+        "\n".join(excerpt),
+    )
+
+
+def route_source_snapshot(out_dir: Path) -> Path:
+    return source_excerpt_snapshot(
+        out_dir,
+        "05_route_auth_code.png",
+        "路由鉴权真实代码",
+        Path(RHIZODELTA_LOCAL_PATH) / "frontend" / "src" / "App.tsx",
+        [(11, 29), (48, 56)],
+    )
+
+
+def sse_source_snapshot(out_dir: Path) -> Path:
+    return source_excerpt_snapshot(
+        out_dir,
+        "06_sse_store_code.png",
+        "SSE 事件处理真实代码",
+        Path(RHIZODELTA_LOCAL_PATH) / "frontend" / "src" / "hooks" / "useSse.ts",
+        [(148, 165), (181, 194), (237, 248)],
+    )
+
+
+def workspace_source_snapshot(out_dir: Path) -> Path:
+    return source_excerpt_snapshot(
+        out_dir,
+        "07_workspace_code.png",
+        "图谱工作区真实代码",
+        Path(RHIZODELTA_LOCAL_PATH) / "frontend" / "src" / "components" / "DesktopGraphWorkspace.tsx",
+        [(50, 64), (78, 99), (165, 179)],
+    )
+
+
+def api_client_source_snapshot(out_dir: Path) -> Path:
+    return source_excerpt_snapshot(
+        out_dir,
+        "08_api_client_code.png",
+        "API 请求封装真实代码",
+        Path(RHIZODELTA_LOCAL_PATH) / "frontend" / "src" / "api" / "client.ts",
+        [(6, 19), (21, 37), (45, 57)],
+    )
+
+
+def home_source_snapshot(out_dir: Path) -> Path:
+    return source_excerpt_snapshot(
+        out_dir,
+        "09_home_page_code.png",
+        "首页入口真实代码",
+        Path(RHIZODELTA_LOCAL_PATH) / "frontend" / "src" / "components" / "home" / "HomePage.tsx",
+        [(14, 30), (50, 64)],
+    )
+
+
+def post_form_source_snapshot(out_dir: Path) -> Path:
+    return source_excerpt_snapshot(
+        out_dir,
+        "10_post_form_code.png",
+        "发布编辑真实代码",
+        Path(RHIZODELTA_LOCAL_PATH) / "frontend" / "src" / "components" / "forms" / "PostForm.tsx",
+        [(8, 28), (34, 48), (79, 88)],
+    )
+
+
+def node_detail_source_snapshot(out_dir: Path) -> Path:
+    return source_excerpt_snapshot(
+        out_dir,
+        "11_node_detail_code.png",
+        "节点详情治理真实代码",
+        Path(RHIZODELTA_LOCAL_PATH) / "frontend" / "src" / "components" / "panels" / "NodeDetailPanel.tsx",
+        [(51, 76), (147, 156)],
+    )
+
+
+def mobile_tree_source_snapshot(out_dir: Path) -> Path:
+    return source_excerpt_snapshot(
+        out_dir,
+        "12_mobile_tree_code.png",
+        "移动端讨论树真实代码",
+        Path(RHIZODELTA_LOCAL_PATH) / "frontend" / "src" / "components" / "mobile" / "MobileDiscussionTreeView.tsx",
+        [(22, 45), (128, 136)],
+    )
+
+
+def command_palette_source_snapshot(out_dir: Path) -> Path:
+    return source_excerpt_snapshot(
+        out_dir,
+        "13_command_palette_code.png",
+        "检索与命令面板真实代码",
+        Path(RHIZODELTA_LOCAL_PATH) / "frontend" / "src" / "components" / "search" / "CommandPalette.tsx",
+        [(37, 55), (101, 116), (153, 162)],
+    )
+
+
+def settings_source_snapshot(out_dir: Path) -> Path:
+    return source_excerpt_snapshot(
+        out_dir,
+        "14_settings_code.png",
+        "个人设置与界面偏好真实代码",
+        Path(RHIZODELTA_LOCAL_PATH) / "frontend" / "src" / "components" / "settings" / "SettingsPage.tsx",
+        [(10, 32), (98, 120)],
+    )
+
+
+def refresh_extra_vue_source_snapshots() -> dict[str, Path]:
+    VUE_DIR.mkdir(exist_ok=True)
+    (VUE_DIR / "images").mkdir(exist_ok=True)
+    return {
+        "home_code": home_source_snapshot(VUE_DIR),
+        "post_form_code": post_form_source_snapshot(VUE_DIR),
+        "node_detail_code": node_detail_source_snapshot(VUE_DIR),
+        "mobile_tree_code": mobile_tree_source_snapshot(VUE_DIR),
+        "command_palette_code": command_palette_source_snapshot(VUE_DIR),
+        "settings_code": settings_source_snapshot(VUE_DIR),
+    }
+
+
+VUE_CODE_SNIPPETS = {
+    "route": """function RequireAuth() {
+  const token = useAuthStore((s) => s.token);
+  const verifyToken = useAuthStore((s) => s.verifyToken);
+  useEffect(() => { verifyToken(); }, [verifyToken]);
+  if (!token) return <Navigate to=\"/login\" replace />;
+  return <Outlet />;
+}
+<Route element={<RequireAuth />}>
+  <Route path=\"/workspace/:rhizomeId\" element={<GraphWorkspace />} />
+</Route>""",
+    "workspace": """const loadTopologyContext = useGraphStore((s) => s.loadTopologyContext);
+const canvasMode = useUiStore((s) => s.canvasMode);
+useEffect(() => {
+  if (rhizomeId) return loadGraphForRoot(rhizomeId, { loadTopologyContext });
+  loadRhizomes().then(async () => {
+    const rootId = useGraphStore.getState().rhizomes[0]?.node_id;
+    if (rootId) await loadGraphForRoot(rootId, { loadTopologyContext });
+  });
+}, [rhizomeId, loadTopologyContext]);
+{canvasMode === \"lineage\" ? <DagCanvas /> : <ExploreCanvas />}""",
+    "api_state": """const res = await fetch(`${BASE_URL}${path}`, {
+  ...options,
+  headers: {
+    ...(isFormData ? {} : { \"Content-Type\": \"application/json\" }),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...options?.headers,
+  },
+});
+if (res.status === 401) useAuthStore.getState().clearToken();
+if (body.code !== 0) throw new Error(body.message);
+return body.data;""",
+    "sse": """function handleSseEvent(event: SseEvent) {
+  const graphStore = useGraphStore.getState();
+  switch (event.type) {
+    case \"NODE_CREATED\":
+      fetchNode(payload.node_id).then((node) => graphStore.addNode(node));
+      useDiscussionTreeStore.getState().refreshTree();
+      break;
+    case \"EDGE_CREATED\":
+      graphStore.addEdge(edge);
+      graphStore.scheduleFlushLayout();
+  }
+}""",
+    "home": """export function HomePage() {
+  const loadRhizomes = useGraphStore((s) => s.loadRhizomes);
+  const rightPanelMode = useUiStore((s) => s.rightPanelMode);
+  useCommandPalette();
+  useEffect(() => { loadRhizomes(); }, [loadRhizomes]);
+  useSse();
+  return <div className=\"min-h-screen flex bg-bg-canvas font-ui\">
+    <HomeSidebar /><HomeMainColumn /><HomeRightRail />
+    <CommandPalette /><ToastContainer />
+  </div>;
+}""",
+    "post_form": """const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!content.replace(/<[^>]+>/g, \"\").trim() || !userId) return;
+  await createPost({
+    request_id: crypto.randomUUID(),
+    author_id: userId,
+    content,
+    target_node_id: selectedNodeId ?? undefined,
+  });
+  addToast({ type: \"success\", message: selectedNodeId ? \"回复已排队\" : \"发布已排队\" });
+};""",
+    "node_detail": """useEffect(() => {
+  if (!payloadNodeId) return;
+  fetchNode(payloadNodeId)
+    .then((freshNode) => useGraphStore.getState().addNode(freshNode))
+    .catch(() => addToast({ type: \"error\", message: \"节点详情加载失败\" }));
+}, [payloadNodeId, addToast]);
+const updateNodePreferenceState = (patch: Partial<typeof node>) => {
+  useGraphStore.getState().addNode({ ...node, ...patch });
+};
+{TABS.map((tab) => <button onClick={() => setActiveTab(tab.id)}>{tab.label}</button>)}""",
+    "mobile_tree": """useEffect(() => {
+  const resolveRoot = async () => {
+    if (rhizomeId) return rhizomeId;
+    await loadRhizomes();
+    return useGraphStore.getState().rhizomes[0]?.node_id ?? null;
+  };
+  resolveRoot().then((rootId) => rootId ? loadTree(rootId) : navigate(\"/\"));
+}, [rhizomeId, loadRhizomes, loadTree, navigate]);
+{loadingState === \"loaded\" && rootId && <CommentTreeItem nodeId={rootId} depth={0} />}
+<MobileReplyComposer /><LongPressMenu />""",
+    "command_palette": """useEffect(() => {
+  const query = debouncedQuery.trim();
+  if (!query) return setSearchResults([]);
+  searchSimilar({ query, top_k: MAX_RESULTS })
+    .then((results) => setSearchResults(results ?? []))
+    .catch((err) => setSearchError(err.message));
+}, [debouncedQuery]);
+const { vector } = await fetchEmbedding(selectedNodeId);
+const results = await searchSimilar({ vector, top_k: 20 });""",
+    "settings": """useEffect(() => {
+  getMyProfile()
+    .then((p) => { setProfile(p); setDisplayName(p.display_name ?? \"\"); })
+    .catch((err) => setLoadError(err.message))
+    .finally(() => setLoading(false));
+}, []);
+const updatedProfile = await updateProfile({ display_name: displayName || null });
+setProfile(updatedProfile);
+<AvatarUpload profile={profile} onProfileChange={setProfile} />
+<RadiusModeToggle />""",
+}
+
+
 def set_cell_text(cell, text: str, bold: bool = False) -> None:
     cell.text = ""
     p = cell.paragraphs[0]
@@ -267,7 +567,7 @@ def set_cell_text(cell, text: str, bold: bool = False) -> None:
     r.bold = bold
     r.font.name = "宋体"
     r._element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
-    r.font.size = Pt(10.5)
+    r.font.size = Pt(BODY_FONT_SIZE)
     cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
 
 
@@ -275,15 +575,20 @@ def set_doc_defaults(doc: Document) -> None:
     styles = doc.styles
     styles["Normal"].font.name = "宋体"
     styles["Normal"]._element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
-    styles["Normal"].font.size = Pt(10.5)
+    styles["Normal"].font.size = Pt(BODY_FONT_SIZE)
     for name in ["Heading 1", "Heading 2", "Heading 3"]:
-        style = styles[name]
+        try:
+            style = styles[name]
+        except KeyError:
+            continue
         style.font.name = "黑体"
         style._element.rPr.rFonts.set(qn("w:eastAsia"), "黑体")
 
 
 def add_page_number(section) -> None:
     footer = section.footer
+    for paragraph in footer.paragraphs:
+        paragraph.clear()
     p = footer.paragraphs[0]
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = p.add_run()
@@ -412,6 +717,487 @@ def add_image(doc: Document, path: Path, caption: str) -> None:
     c.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
 
+def libreoffice_convert(source: Path, target_ext: str, out_dir: Path) -> Path:
+    office = shutil.which("libreoffice") or shutil.which("soffice")
+    if not office:
+        raise RuntimeError("LibreOffice is required to generate template-based Word deliverables.")
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    runtime_dir = Path("/tmp/libreoffice-runtime")
+    cache_dir = Path("/tmp/libreoffice-cache")
+    home_dir = Path("/tmp/libreoffice-home")
+    profile_dir = Path(f"/tmp/libreoffice-profile-{source.stem}-{target_ext}")
+    for path in [runtime_dir, cache_dir, home_dir, profile_dir]:
+        path.mkdir(parents=True, exist_ok=True)
+    runtime_dir.chmod(0o700)
+
+    output = out_dir / f"{source.stem}.{target_ext}"
+    output.unlink(missing_ok=True)
+    env = os.environ.copy()
+    env.update(
+        {
+            "HOME": str(home_dir),
+            "XDG_RUNTIME_DIR": str(runtime_dir),
+            "XDG_CACHE_HOME": str(cache_dir),
+            "SAL_USE_VCLPLUGIN": "svp",
+        }
+    )
+    command = [
+        office,
+        f"-env:UserInstallation=file://{profile_dir}",
+        "--headless",
+        "--nologo",
+        "--nofirststartwizard",
+        "--convert-to",
+        target_ext,
+        "--outdir",
+        str(out_dir),
+        str(source),
+    ]
+    result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=60)
+    if result.returncode != 0 or not output.exists():
+        raise RuntimeError(
+            "LibreOffice conversion failed:\n"
+            f"command: {' '.join(command)}\nstdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+    return output
+
+
+def vue_template_document() -> Document:
+    template_docx = libreoffice_convert(VUE_TEMPLATE_DOC, "docx", Path("/tmp/finalexams-vue-template"))
+    template_copy = template_docx.with_name("vue-report-template-copy.docx")
+    shutil.copyfile(template_docx, template_copy)
+    doc = Document(str(template_copy))
+    set_doc_defaults(doc)
+    return doc
+
+
+def set_run_font(run, size: float = BODY_FONT_SIZE, east_asia: str = "宋体", latin: str = "Times New Roman", bold: bool = False) -> None:
+    run.bold = bold
+    run.font.name = latin
+    run._element.rPr.rFonts.set(qn("w:eastAsia"), east_asia)
+    run.font.size = Pt(size)
+
+
+def apply_fixed_line_spacing(paragraph: Paragraph) -> None:
+    paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.EXACTLY
+    paragraph.paragraph_format.line_spacing = FIXED_LINE_SPACING
+
+
+def apply_image_paragraph_spacing(paragraph: Paragraph) -> None:
+    paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
+    paragraph.paragraph_format.line_spacing = 1
+    paragraph.paragraph_format.space_before = Pt(2)
+    paragraph.paragraph_format.space_after = Pt(2)
+
+
+def delete_paragraph(paragraph: Paragraph) -> None:
+    element = paragraph._element
+    parent = element.getparent()
+    if parent is not None:
+        parent.remove(element)
+
+
+def remove_paragraph_child(paragraph: Paragraph, tag: str) -> None:
+    p_pr = paragraph._p.get_or_add_pPr()
+    child = p_pr.find(qn(tag))
+    if child is not None:
+        p_pr.remove(child)
+
+
+def reset_template_paragraph(paragraph: Paragraph, outline_level: int | None = None) -> None:
+    paragraph.style = "Normal"
+    for tag in ["w:numPr", "w:outlineLvl"]:
+        remove_paragraph_child(paragraph, tag)
+    if outline_level is not None:
+        outline = OxmlElement("w:outlineLvl")
+        outline.set(qn("w:val"), str(outline_level))
+        paragraph._p.get_or_add_pPr().append(outline)
+
+
+def set_paragraph_text(paragraph: Paragraph, text: str, kind: str = "body") -> None:
+    paragraph.clear()
+    if kind == "heading1":
+        reset_template_paragraph(paragraph, outline_level=0)
+    elif kind == "heading":
+        reset_template_paragraph(paragraph, outline_level=1)
+    else:
+        reset_template_paragraph(paragraph)
+
+    run = paragraph.add_run(text)
+    if kind == "heading1":
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        paragraph.paragraph_format.first_line_indent = Pt(0)
+        paragraph.paragraph_format.space_before = HEADING1_SPACE
+        paragraph.paragraph_format.space_after = HEADING1_SPACE
+        paragraph.paragraph_format.page_break_before = True
+        apply_fixed_line_spacing(paragraph)
+        set_run_font(run, size=16, east_asia="黑体", bold=True)
+    elif kind == "heading":
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        paragraph.paragraph_format.first_line_indent = Pt(0)
+        paragraph.paragraph_format.space_before = HEADING2_SPACE
+        paragraph.paragraph_format.space_after = HEADING2_SPACE
+        paragraph.paragraph_format.page_break_before = False
+        apply_fixed_line_spacing(paragraph)
+        set_run_font(run, size=14, east_asia="黑体")
+    elif kind == "caption":
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        paragraph.paragraph_format.first_line_indent = Pt(0)
+        paragraph.paragraph_format.page_break_before = False
+        apply_fixed_line_spacing(paragraph)
+        set_run_font(run, size=BODY_FONT_SIZE, east_asia="黑体")
+    else:
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        paragraph.paragraph_format.first_line_indent = BODY_FIRST_LINE_INDENT
+        paragraph.paragraph_format.space_before = Pt(0)
+        paragraph.paragraph_format.space_after = Pt(0)
+        paragraph.paragraph_format.page_break_before = False
+        apply_fixed_line_spacing(paragraph)
+        set_run_font(run, size=BODY_FONT_SIZE)
+
+
+def insert_paragraph_after(reference: Paragraph, text: str = "", kind: str = "body") -> Paragraph:
+    new_element = OxmlElement("w:p")
+    p_pr = reference._p.pPr
+    if p_pr is not None:
+        new_element.append(deepcopy(p_pr))
+    reference._p.addnext(new_element)
+    paragraph = Paragraph(new_element, reference._parent)
+    if text:
+        set_paragraph_text(paragraph, text, kind)
+    return paragraph
+
+
+def format_image_paragraph(paragraph: Paragraph) -> None:
+    reset_template_paragraph(paragraph)
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    paragraph.paragraph_format.first_line_indent = Pt(0)
+    paragraph.paragraph_format.page_break_before = False
+    apply_image_paragraph_spacing(paragraph)
+
+
+def find_paragraph(doc: Document, text: str) -> Paragraph:
+    for paragraph in doc.paragraphs:
+        if paragraph.text.strip() == text:
+            return paragraph
+    raise ValueError(f"Paragraph not found: {text}")
+
+
+def find_paragraph_index(doc: Document, text: str) -> int:
+    for idx, paragraph in enumerate(doc.paragraphs):
+        if paragraph.text.strip() == text:
+            return idx
+    raise ValueError(f"Paragraph not found: {text}")
+
+
+def paragraph_has_media(paragraph: Paragraph) -> bool:
+    return bool(paragraph._p.xpath(".//w:drawing|.//w:pict"))
+
+
+def remove_template_textboxes(doc: Document) -> None:
+    for textbox in list(doc._element.xpath(".//w:txbxContent")):
+        ancestor = textbox
+        while ancestor is not None and ancestor.tag != qn("w:r"):
+            ancestor = ancestor.getparent()
+        if ancestor is not None and ancestor.getparent() is not None:
+            ancestor.getparent().remove(ancestor)
+
+
+def remove_template_toc_controls(doc: Document) -> None:
+    for gallery in list(doc._element.xpath(".//w:docPartGallery")):
+        if gallery.get(qn("w:val")) != "Table of Contents":
+            continue
+        ancestor = gallery
+        while ancestor is not None and ancestor.tag != qn("w:sdt"):
+            ancestor = ancestor.getparent()
+        if ancestor is not None and ancestor.getparent() is not None:
+            ancestor.getparent().remove(ancestor)
+
+
+def remove_template_body_media(doc: Document) -> None:
+    try:
+        body_start = find_paragraph_index(doc, "1 项目概述")
+    except ValueError:
+        body_start = 0
+    for paragraph in list(doc.paragraphs[body_start:]):
+        if paragraph_has_media(paragraph):
+            delete_paragraph(paragraph)
+
+
+def replace_heading(doc: Document, old: str, new: str, level: int = 2) -> None:
+    set_paragraph_text(find_paragraph(doc, old), new, "heading1" if level == 1 else "heading")
+
+
+def normalize_vue_template_headings(doc: Document) -> None:
+    for heading, _page in VUE_TOC_ENTRIES:
+        try:
+            paragraph = find_paragraph(doc, heading)
+        except ValueError:
+            continue
+        prefix = heading.split()[0]
+        level = 2 if "." in prefix else 1
+        set_paragraph_text(paragraph, heading, "heading1" if level == 1 else "heading")
+
+
+def replace_section_body(
+    doc: Document,
+    heading: str,
+    next_heading: str,
+    body_texts: list[str],
+    images: list[tuple[Path, str]] | None = None,
+) -> None:
+    start_idx = find_paragraph_index(doc, heading)
+    end_idx = find_paragraph_index(doc, next_heading)
+    start_paragraph = doc.paragraphs[start_idx]
+    for paragraph in list(doc.paragraphs[start_idx + 1 : end_idx]):
+        delete_paragraph(paragraph)
+
+    cursor = start_paragraph
+    for text in body_texts:
+        cursor = insert_paragraph_after(cursor, text, "body")
+
+    for path, caption in images or []:
+        image_paragraph = insert_paragraph_after(cursor)
+        format_image_paragraph(image_paragraph)
+        image_paragraph.add_run().add_picture(str(path), width=REPORT_IMAGE_WIDTH)
+        cursor = insert_paragraph_after(image_paragraph, caption, "caption")
+
+
+def set_cell_shading(cell, fill: str) -> None:
+    tc_pr = cell._tc.get_or_add_tcPr()
+    shading = tc_pr.find(qn("w:shd"))
+    if shading is None:
+        shading = OxmlElement("w:shd")
+        tc_pr.append(shading)
+    shading.set(qn("w:fill"), fill)
+
+
+def set_table_borders(table, color: str = "94A3B8", size: str = "8") -> None:
+    tbl_pr = table._tbl.tblPr
+    borders = tbl_pr.first_child_found_in("w:tblBorders")
+    if borders is not None:
+        tbl_pr.remove(borders)
+    borders = OxmlElement("w:tblBorders")
+    for edge in ["top", "left", "bottom", "right", "insideH", "insideV"]:
+        tag = OxmlElement(f"w:{edge}")
+        tag.set(qn("w:val"), "single")
+        tag.set(qn("w:sz"), size)
+        tag.set(qn("w:space"), "0")
+        tag.set(qn("w:color"), color)
+        borders.append(tag)
+    tbl_pr.append(borders)
+
+
+def set_cell_margins(cell, margin: str = "70") -> None:
+    tc_pr = cell._tc.get_or_add_tcPr()
+    tc_mar = tc_pr.find(qn("w:tcMar"))
+    if tc_mar is None:
+        tc_mar = OxmlElement("w:tcMar")
+        tc_pr.append(tc_mar)
+    for side in ["top", "left", "bottom", "right"]:
+        item = tc_mar.find(qn(f"w:{side}"))
+        if item is None:
+            item = OxmlElement(f"w:{side}")
+            tc_mar.append(item)
+        item.set(qn("w:w"), margin)
+        item.set(qn("w:type"), "dxa")
+
+
+def set_code_paragraph(paragraph: Paragraph, text: str) -> None:
+    paragraph.clear()
+    reset_template_paragraph(paragraph)
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    paragraph.paragraph_format.first_line_indent = Pt(0)
+    paragraph.paragraph_format.left_indent = Pt(0)
+    paragraph.paragraph_format.right_indent = Pt(0)
+    paragraph.paragraph_format.space_before = Pt(0)
+    paragraph.paragraph_format.space_after = Pt(0)
+    paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.EXACTLY
+    paragraph.paragraph_format.line_spacing = Pt(8.5)
+    run = paragraph.add_run(text)
+    run.font.name = "Consolas"
+    run._element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
+    run.font.size = Pt(7.2)
+
+
+def add_code_table_after(reference: Paragraph, code: str) -> Paragraph:
+    table = reference._parent.add_table(rows=1, cols=1, width=Cm(14.2))
+    reference._p.addnext(table._tbl)
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    table.autofit = False
+    table.columns[0].width = Cm(14.2)
+    set_table_borders(table, size="6")
+    cell = table.cell(0, 0)
+    cell.width = Cm(14.2)
+    cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+    set_cell_shading(cell, "FFFFFF")
+    set_cell_margins(cell)
+    lines = code.strip("\n").splitlines()
+    set_code_paragraph(cell.paragraphs[0], lines[0] if lines else "")
+    for line in lines[1:]:
+        set_code_paragraph(cell.add_paragraph(), line)
+    anchor = OxmlElement("w:p")
+    table._tbl.addnext(anchor)
+    return Paragraph(anchor, reference._parent)
+
+
+def add_placeholder_box_after(reference: Paragraph, text: str, caption_text: str) -> Paragraph:
+    table = reference._parent.add_table(rows=1, cols=1, width=Cm(14.8))
+    reference._p.addnext(table._tbl)
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    set_table_borders(table)
+    cell = table.cell(0, 0)
+    cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+    set_cell_shading(cell, "F8FAFC")
+    paragraph = cell.paragraphs[0]
+    set_paragraph_text(paragraph, text, "caption")
+    paragraph.paragraph_format.space_before = Pt(12)
+    paragraph.paragraph_format.space_after = Pt(12)
+    caption_element = OxmlElement("w:p")
+    table._tbl.addnext(caption_element)
+    caption = Paragraph(caption_element, reference._parent)
+    set_paragraph_text(caption, caption_text, "caption")
+    return caption
+
+
+def replace_module_section(
+    doc: Document,
+    heading: str,
+    next_heading: str,
+    body_text: str,
+    effect_placeholder: str | None,
+    effect_caption: str | None,
+    code_image: Path | None,
+    code_caption: str,
+    code_text: str | None = None,
+) -> Paragraph:
+    start_idx = find_paragraph_index(doc, heading)
+    end_idx = find_paragraph_index(doc, next_heading)
+    start_paragraph = doc.paragraphs[start_idx]
+    for paragraph in list(doc.paragraphs[start_idx + 1 : end_idx]):
+        delete_paragraph(paragraph)
+
+    cursor = insert_paragraph_after(start_paragraph, body_text, "body")
+    if effect_placeholder and effect_caption:
+        cursor = add_placeholder_box_after(cursor, effect_placeholder, effect_caption)
+    if code_text is not None:
+        anchor = add_code_table_after(cursor, code_text)
+        return insert_paragraph_after(anchor, code_caption, "caption")
+    if code_image is None:
+        return cursor
+    image_paragraph = insert_paragraph_after(cursor)
+    format_image_paragraph(image_paragraph)
+    image_paragraph.add_run().add_picture(str(code_image), width=CODE_IMAGE_WIDTH)
+    return insert_paragraph_after(image_paragraph, code_caption, "caption")
+
+
+def insert_module_after(
+    reference: Paragraph,
+    heading: str,
+    body_texts: list[str],
+    code_image: Path | None,
+    code_caption: str,
+    code_text: str | None = None,
+) -> Paragraph:
+    cursor = insert_paragraph_after(reference, heading, "heading")
+    for text in body_texts:
+        cursor = insert_paragraph_after(cursor, text, "body")
+    if code_text is not None:
+        anchor = add_code_table_after(cursor, code_text)
+        return insert_paragraph_after(anchor, code_caption, "caption")
+    if code_image is None:
+        return cursor
+    image_paragraph = insert_paragraph_after(cursor)
+    format_image_paragraph(image_paragraph)
+    image_paragraph.add_run().add_picture(str(code_image), width=CODE_IMAGE_WIDTH)
+    return insert_paragraph_after(image_paragraph, code_caption, "caption")
+
+
+def delete_section_body(doc: Document, heading: str, next_heading: str) -> None:
+    start_idx = find_paragraph_index(doc, heading)
+    end_idx = find_paragraph_index(doc, next_heading)
+    for paragraph in list(doc.paragraphs[start_idx:end_idx]):
+        delete_paragraph(paragraph)
+
+
+def replace_section_body_to_end(doc: Document, heading: str, body_texts: list[str]) -> None:
+    start_idx = find_paragraph_index(doc, heading)
+    start_paragraph = doc.paragraphs[start_idx]
+    for paragraph in list(doc.paragraphs[start_idx + 1 :]):
+        delete_paragraph(paragraph)
+    cursor = start_paragraph
+    for text in body_texts:
+        cursor = insert_paragraph_after(cursor, text, "body")
+
+
+VUE_TOC_ENTRIES = [
+    ("1 项目概述", "- 1 -"),
+    ("1.1 项目背景", "- 1 -"),
+    ("1.2 项目目标", "- 1 -"),
+    ("2 技术选型", "- 2 -"),
+    ("2.1 前端技术栈", "- 2 -"),
+    ("2.2 后端技术栈（可选）", "- 2 -"),
+    ("3 需求分析", "- 3 -"),
+    ("3.1 功能需求", "- 3 -"),
+    ("3.2 非功能性需求", "- 3 -"),
+    ("4 详细设计", "- 4 -"),
+    ("4.1 开发环境", "- 4 -"),
+    ("4.2 路由与鉴权模块", "- 5 -"),
+    ("4.3 图谱工作区模块", "- 7 -"),
+    ("4.4 API 封装与状态管理模块", "- 9 -"),
+    ("4.5 实时更新模块", "- 11 -"),
+    ("4.6 首页与话题入口模块", "- 12 -"),
+    ("4.7 发布与回复编辑模块", "- 13 -"),
+    ("4.8 节点详情与治理模块", "- 14 -"),
+    ("4.9 移动端讨论树模块", "- 15 -"),
+    ("4.10 检索与命令面板模块", "- 16 -"),
+    ("4.11 个人设置与界面偏好模块", "- 17 -"),
+    ("4.x 难点与解决方案", "- 18 -"),
+    ("5 总结与展望", "- 19 -"),
+    ("5.1 项目总结", "- 19 -"),
+    ("5.2 未来展望", "- 19 -"),
+]
+
+
+def replace_vue_template_cover(doc: Document) -> None:
+    fields = [
+        "RhizoDelta 图谱化非线性讨论系统前端实现",
+        "（请填写）",
+        "（请填写）",
+        "信息工程学院",
+        "软件技术",
+        "（请填写）",
+        "唐俊",
+        "2026年6月x日",
+    ]
+    table = doc.tables[0]
+    for row, value in zip(table.rows, fields):
+        set_cell_text(row.cells[1], value)
+
+
+def replace_vue_template_toc(doc: Document) -> None:
+    remove_template_toc_controls(doc)
+    toc = find_paragraph(doc, "目  录")
+    body_start = find_paragraph_index(doc, "1 项目概述")
+    toc_idx = find_paragraph_index(doc, "目  录")
+    for paragraph in list(doc.paragraphs[toc_idx + 1 : body_start]):
+        delete_paragraph(paragraph)
+
+    cursor = toc
+    for title, page in VUE_TOC_ENTRIES:
+        paragraph = insert_paragraph_after(cursor)
+        paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.EXACTLY
+        paragraph.paragraph_format.line_spacing = Pt(22)
+        paragraph.paragraph_format.tab_stops.add_tab_stop(Cm(15.0), WD_TAB_ALIGNMENT.RIGHT)
+        left = paragraph.add_run(title)
+        set_run_font(left)
+        paragraph.add_run("\t")
+        right = paragraph.add_run(page)
+        set_run_font(right)
+        cursor = paragraph
+
+
 def javaee_markdown(diagrams: dict[str, Path]) -> str:
     img = lambda key: f"images/{diagrams[key].name}"
     return f"""# 《JavaEE企业级Web应用开发实战》期末课程设计报告
@@ -512,7 +1298,7 @@ mvn test -Dspring.profiles.active=test
 """
 
 
-def vue_markdown(diagrams: dict[str, Path]) -> str:
+def legacy_vue_markdown(diagrams: dict[str, Path]) -> str:
     img = lambda key: f"images/{diagrams[key].name}"
     return f"""# 《Vue.js应用开发》期末课程设计报告
 
@@ -695,7 +1481,7 @@ def add_javaee_content(doc: Document, diagrams: dict[str, Path]) -> None:
     para(doc, "本项目从 JavaEE 企业级 Web 应用的角度，体现了分层架构、REST API、Spring Security 鉴权、异步消息、图数据库建模、实时事件推送、自动化测试和可观测性等综合能力。项目难点不在单表 CRUD，而在如何把非线性讨论、不可变历史、AI 编排和前端实时反馈组合成一个可运行的工程系统。")
 
 
-def add_vue_content(doc: Document, diagrams: dict[str, Path]) -> None:
+def legacy_add_vue_content(doc: Document, diagrams: dict[str, Path]) -> None:
     doc.add_heading("一、项目概述", 1)
     para(doc, "按课程提交要求，本报告保留 Vue.js 课程封面与文件名；正文依据实际项目填写。实际前端技术栈为 React 19 + TypeScript + Vite。RhizoDelta 前端是一个图谱化讨论系统的交互界面。用户可以登录或注册，浏览根话题，进入图谱工作区查看观点的演进关系，发布新话题，对节点执行延续注入或分叉，并通过右侧详情面板查看溯源、关联和审计信息。")
     para(doc, f"代码仓库为 {RHIZODELTA_REPO_URL}，前端目录为 {RHIZODELTA_LOCAL_PATH}/frontend。")
@@ -764,6 +1550,329 @@ def add_vue_content(doc: Document, diagrams: dict[str, Path]) -> None:
     para(doc, "本项目前端重点解决了图谱型应用中“数据结构复杂、实时事件多、桌面与移动体验差异大”的问题。通过 API 分层、Zustand 状态拆分、React Flow 图谱渲染、SSE 增量更新和移动端讨论树降级方案，系统形成了较完整的前端工程实践。虽然课程名称为 Vue.js 应用开发，本报告正文按照学校允许的实际项目内容填写，保留课程封面和文件名要求。")
 
 
+def vue_react_report_content(versions: dict[str, str]) -> dict[str, object]:
+    background = (
+        f"《Vue.js应用开发》课程要求提交前端课程设计报告和 Word 文档，文件名与课程目录按要求保留 Vue.js，"
+        f"但本项目真实代码实现是 React 前端，因此正文全部按 /home/tthm/workspace/RhizoDelta/frontend 中的 React、"
+        f"TypeScript 和 Vite 源码编写，不把现有系统伪写成 Vue 项目。RhizoDelta 图谱化非线性讨论系统前端选取"
+        f"“多人围绕同一议题进行发散讨论与共识沉淀”这一场景。传统论坛、群聊和评论区通常按时间线排列内容，"
+        f"用户很难在长讨论中快速看清观点之间的继承、分歧、合并和转化关系；随着讨论规模扩大，重复观点、"
+        f"分支争论、证据补充和阶段性总结会混在一起，后续参与者需要反复回看历史消息，管理者也难以判断结论"
+        f"来自哪些原始发言。项目源码中的 React 页面、React Router 路由、Zustand 状态、fetch API 客户端、SSE "
+        f"事件处理和 React Flow 图谱画布共同解决这个问题：节点代表用户观点、AI 共识或阶段结果，边代表延续、"
+        f"分叉、合并、语义关联等关系，用户可以从根话题进入工作区查看观点演进，也可以在移动端使用讨论树阅读。"
+        f"本报告从真实 React {versions['react']}、TypeScript {versions['typescript']}、Vite {versions['vite']} "
+        f"工程出发，总结组件化、路由鉴权、接口封装、状态管理、响应式布局和实时更新等前端开发能力。"
+    )
+    target = (
+        "本项目的功能目标是完成一套可运行的图谱化讨论前端：用户能够注册、登录和保持会话；首页能够展示根话题、"
+        "信息流和辅助入口；工作区能够按桌面端图谱模式和移动端讨论树模式呈现节点关系；节点详情面板能够展示正文、"
+        "作者、质量评分、溯源、关联和审计信息；用户能够发布新话题、回复节点，并根据权限执行延续注入、分叉和复核"
+        "等操作；前端还要通过 SSE 实时接收后端事件，使节点创建、边创建、AI 裁决完成和质量评分可以增量刷新。上述目标"
+        "来自 src/App.tsx、src/components/GraphWorkspace.tsx、src/components/DesktopGraphWorkspace.tsx、"
+        "src/components/mobile/MobileDiscussionTreeView.tsx、src/api/client.ts 和 src/hooks/useSse.ts 等真实源码。"
+        "技术目标是掌握 React 函数组件、Hooks、React Router 嵌套路由、Zustand store、统一 fetch 请求封装、"
+        "TypeScript 类型约束、Vite 构建、Tailwind 样式和 Vitest 测试等现代前端工程能力。"
+    )
+    return {
+        "background": background,
+        "target": target,
+        "tech_stack": [
+            f"UI 框架与语言：真实工程在 package.json 中声明 React {versions['react']}、TypeScript {versions['typescript']} 和 Vite {versions['vite']}。页面由函数组件和 Hooks 组织，入口在 src/main.tsx 与 src/App.tsx，业务组件分布在 src/components/ 下。",
+            f"路由与页面组织：项目使用 React Router {versions['react-router-dom']} 管理 /login、/、/workspace、/workspace/:rhizomeId 和 /settings 等页面。src/App.tsx 中通过 BrowserRouter、Routes、Route、Navigate、Outlet、RequireAuth 和 PublicOnlyRoute 实现公开路由与受保护路由。",
+            f"状态管理：项目使用 Zustand {versions['zustand']}，按职责拆分 authStore、graphStore、sseStore、homeStore、discussionTreeStore 和 uiStore。认证、图谱、SSE、首页、移动端讨论树和界面状态互相独立，组件通过 store action 更新状态。",
+            f"UI 与图谱渲染：项目使用 Tailwind CSS {versions['tailwindcss']}、CSS Design Tokens、@xyflow/react {versions['@xyflow/react']}、@dagrejs/dagre {versions['@dagrejs/dagre']} 和 d3-force {versions['d3-force']} 实现布局、主题、图谱节点边渲染和布局计算。",
+            f"接口、编辑器与测试：统一 API 客户端在 src/api/client.ts 中使用原生 fetch，负责附加 JWT token、处理 401 和解析 {{code, message, data}} 响应结构；TipTap {versions['@tiptap/react']} 与 Markdown 工具用于内容编辑；Vitest {versions['vitest']}、Testing Library 和 ESLint {versions['eslint']} 用于质量保障。",
+        ],
+        "backend": "项目后端由 Java 17、Spring Boot 3.2.3、Spring Security、Neo4j 5、RabbitMQ、Redis 和 SSE 事件服务组成。前端通过 /api/** 访问后端 REST 接口，通过 /api/events/stream 订阅实时事件。后端负责用户认证、节点查询、发帖异步处理、AI 路由决策、图数据库写入和审计记录，前端负责把这些数据转换为用户可理解、可操作的 React 页面状态。",
+        "functional": [
+            "（1）用户模块：支持注册、登录、退出和 token 持久化。登录成功后进入受保护页面，未登录用户访问工作区或设置页时自动跳转到登录页。",
+            "（2）首页模块：展示根话题列表、动态信息和右侧辅助入口，帮助用户快速找到正在讨论的主题，并进入指定话题的工作区。",
+            "（3）图谱工作区模块：桌面端展示图谱画布、话题列表和右侧详情面板；用户可以缩放、选择节点、查看节点关系、切换谱系视图和探索视图。",
+            "（4）移动端讨论树模块：小屏设备不直接挂载复杂图谱画布，而是请求 discussion-tree 接口，用嵌套评论树展示讨论结构，并提供长按菜单和移动端回复输入。",
+            "（5）节点详情与治理模块：节点详情面板展示正文、作者、质量评分、溯源、关联和审计时间线；具备权限的用户可以触发延续注入、分叉、复核和其他治理操作。",
+            "（6）实时更新模块：前端监听 SSE 事件，并根据 NODE_CREATED、EDGE_CREATED、DECISION_COMPLETE、ORCHESTRATION_STATUS、SUMMARY_GENERATED 和 QUALITY_SCORED 等事件增量更新页面。",
+            "（7）检索与命令面板模块：支持最近节点、文本相似检索、向量相似检索和键盘选择，帮助用户在大规模讨论图谱中快速定位内容。",
+            "（8）个人设置与偏好模块：支持头像、展示名称和界面圆角偏好设置，使系统具备完整的用户资料维护和界面个性化能力。",
+        ],
+        "nonfunctional": "性能方面，桌面端图谱需要避免无意义重绘，移动端需要使用讨论树降低复杂画布渲染成本；接口请求应使用统一封装，避免重复处理 token 和错误提示。兼容性方面，项目面向现代浏览器，支持桌面和移动端响应式布局。安全性方面，受保护路由必须检查认证状态，请求头必须携带 Bearer token，前端不能把权限判断作为唯一安全边界。可维护性方面，页面组件、API 模块、store 和工具函数按职责拆分，测试覆盖表单、节点操作、移动端组件、Markdown 工具、SSE 事件和状态管理。",
+        "environment": f"本项目开发环境为 Linux 工作站，代码编辑工具为 Visual Studio Code 或同类编辑器，前端目录位于 {RHIZODELTA_LOCAL_PATH}/frontend。项目使用 Node.js、npm、Vite {versions['vite']}、TypeScript {versions['typescript']}、ESLint {versions['eslint']}、Vitest {versions['vitest']} 和 Testing Library 完成开发、构建、代码检查和测试。常用命令来自 package.json，包括 npm run dev、npm run build、npm run lint 和测试命令 npx vitest。本报告内容逐项核对了 package.json、src/App.tsx、src/api/client.ts、src/api/nodes.ts、src/hooks/useSse.ts、src/stores/*.ts、src/components/GraphWorkspace.tsx、src/components/DesktopGraphWorkspace.tsx 和 src/components/mobile/MobileDiscussionTreeView.tsx。后端联调时需要先启动 Spring Boot 服务，并保证 Vite 将 /api 代理到 http://localhost:8090。",
+        "route": "路由与鉴权模块负责把公开页面和受保护页面分开。/login 允许未登录用户访问，首页、工作区和设置页都需要有效 token。用户登录成功后，认证信息写入本地存储并同步到 authStore；刷新页面时，RequireAuth 调用 verifyToken 恢复会话状态。该模块的实现重点是避免未认证用户直接进入业务页面，同时避免每个页面重复编写登录判断逻辑，因此把鉴权逻辑抽象到 React Router 外层组件中。",
+        "workspace": "图谱工作区是前端最核心的功能模块。桌面端由左侧话题列表、中间 React Flow 图谱画布和右侧详情面板组成：左侧帮助用户切换根话题，中间画布负责展示节点和边，右侧详情面板展示当前选中节点的内容、作者、溯源、关联和审计信息。画布支持谱系视图和探索视图，前者强调从根话题到当前结论的演进关系，后者强调语义关联和分支扩展。移动端由于屏幕空间有限，不直接挂载复杂画布，而是使用 discussion-tree 接口把讨论呈现为嵌套阅读结构。",
+        "api_state": "API 封装模块以 src/api/client.ts 为统一入口，自动附加 Authorization: Bearer <token>，并统一处理后端返回的 {code, message, data} 结构。业务接口按领域拆分为 auth、nodes、posts、decisions、associations、audit、profile、feed、events、search、follows 和 mutes 等文件，页面组件不直接拼接底层请求细节。状态管理模块按职责拆分 store：authStore 管理登录状态，graphStore 管理节点、边、选择态和图谱视图，sseStore 管理连接状态，homeStore 管理首页数据，discussionTreeStore 管理移动端讨论树，uiStore 管理侧边栏、右面板、命令面板和 toast。API 与 store 的分层让组件只关注业务交互，错误处理、token 处理和数据建模集中管理，也便于对表单、移动端组件、SSE 和 store 单独测试。",
+        "sse": "实时更新模块通过 useSse.ts 请求 /api/events/stream。连接建立后，前端持续解析后端推送的事件，并根据事件类型决定更新策略：节点创建事件会补拉节点并加入图谱，边创建事件会补齐端点关系，决策完成事件会替换乐观节点，摘要生成和质量评分事件会刷新节点徽章。该模块的难点是保证实时性和一致性之间的平衡，既不能因为频繁刷新造成页面抖动，也不能因为缓存过旧导致图谱状态和后端不一致。",
+        "home": [
+            "首页与话题入口模块负责登录后的第一层信息组织。HomePage 进入页面后调用 graphStore 的 loadRhizomes 拉取根话题，用 HomeSidebar、HomeMainColumn 和 HomeRightRail 组成左侧导航、中间主列、右侧辅助栏的三栏结构；移动端则把侧边导航切换为底部弹层，避免小屏空间被固定侧栏占用。",
+            "实现过程中，首页组件本身只承担装配职责，数据读取和界面状态分别交给 graphStore 与 uiStore 管理，同时接入 useSse 和 useCommandPalette，使首屏可以响应实时事件并打开全局检索。这个模块体现了项目的信息架构能力：用户不是直接面对复杂图谱画布，而是先通过根话题、动态信息和快捷入口理解系统当前状态，再进入具体工作区。",
+        ],
+        "post_form": [
+            "发布与回复编辑模块负责把用户输入转化为后端可异步处理的发帖请求。PostForm 使用 MarkdownEditor 管理正文，根据 selectedNodeId 判断当前是发布新话题还是回复已有节点，并在界面上展示“正在回复”的目标摘要，用户也可以取消回复回到新发布状态。",
+            "提交时，handleSubmit 会先去除 HTML 标签检查空内容，再校验当前登录用户，随后调用 createPost 传入 request_id、author_id、content 和 target_node_id。接口返回后前端显示“发布已排队”或“回复已排队”的 toast，不阻塞等待 AI 裁决完成，而是由后续 SSE 事件推动图谱更新。该流程展示了项目对异步业务的处理能力：用户交互保持及时反馈，复杂决策交给后端队列和实时事件链路完成。",
+        ],
+        "node_detail": [
+            "节点详情与治理模块是图谱工作区中承载深度信息的关键页面。用户选中节点后，NodeDetailPanel 会根据 rightPanelPayload 打开右侧面板，展示节点类型、作者、创建时间、正文内容、AI 决策说明、质量状态和编排状态，并通过“详情、确权溯源、关联、审计”标签页组织不同维度的信息。",
+            "实现过程中，面板会在打开时调用 fetchNode 获取最新节点数据，并用 graphStore.addNode 写回本地状态，避免详情面板展示过期缓存。关注、取消关注、屏蔽、取消屏蔽和摘要生成等操作都通过独立 API 完成，操作后立即更新 store 并给出 toast 反馈。该模块把节点从简单图形元素提升为可审计、可治理、可追踪的业务对象，是本项目区别于普通评论列表的重要亮点。",
+        ],
+        "mobile_tree": [
+            "移动端讨论树模块解决了复杂图谱在小屏设备上难以阅读和操作的问题。GraphWorkspace 根据视口宽度选择桌面图谱或移动端讨论树；MobileDiscussionTreeView 根据路由参数确定根节点，没有指定根节点时先加载根话题并选择第一个话题进入。",
+            "实现过程中，移动端视图通过 discussionTreeStore 加载 discussion-tree 数据，使用 Skeleton 展示加载态，加载完成后由 CommentTreeItem 递归渲染嵌套评论结构，并配合 MobileReplyComposer、LongPressMenu 和 ToastContainer 完成回复、长按菜单和反馈提示。页面在浏览器重新可见时自动 refreshTree，保证移动端返回页面后内容仍然及时。该模块体现了项目对响应式体验的深入处理：桌面保留图谱探索能力，移动端则转为更适合阅读和回复的线性树结构。",
+        ],
+        "command_palette": [
+            "检索与命令面板模块用于解决大规模图谱中节点定位困难的问题。CommandPalette 打开后会聚合最近节点、关键词相似检索和当前节点向量相似检索，用户可以通过输入框、方向键和回车快速跳转到目标节点。",
+            "实现过程中，模块对输入内容做 150ms 防抖，调用 searchSimilar 发起文本检索；当用户选择“查找相似节点”时，先通过 fetchEmbedding 取得当前节点向量，再提交向量相似检索。如果目标节点当前不在本地图谱中，模块会先调用 loadTopologyContext 补拉上下文，再 selectNode、requestFocusNode 并打开详情面板。该模块体现了项目对复杂信息检索的工程化处理，让图谱系统不仅能展示关系，也能高效定位和导航。",
+        ],
+        "settings": [
+            "个人设置与界面偏好模块用于补齐系统的用户资料维护能力。SettingsPage 进入后调用 getMyProfile 加载当前用户资料，展示用户名、头像、展示名称和界面外观设置，并通过 RadiusModeToggle 支持界面圆角偏好切换。",
+            "实现过程中，页面分别处理 loading、saving、loadError 和 message 状态，保存展示名称时调用 updateProfile 并把返回的 UserProfile 写回本地状态；头像上传交给 AvatarUpload 组件完成，认证用户名来自 authStore。该模块虽然不是图谱核心链路，但体现了应用完整性：系统不仅能完成讨论和治理，也提供了真实产品中必需的个人资料和界面偏好入口。",
+        ],
+        "module_placeholders": {
+            "route": "效果图占位：登录页、登录后首页或未登录跳转登录页截图。",
+            "workspace": "效果图占位：桌面端图谱工作区三栏布局截图，包含左侧话题列表、中间图谱画布和右侧详情面板。",
+            "sse": "效果图占位：发帖后节点增量出现、边关系刷新或质量评分更新截图。",
+        },
+        "effect_captions": {
+            "route": "图4-2 路由与鉴权模块效果图占位（请后期替换为真实页面截图）",
+            "workspace": "图4-4 图谱工作区模块效果图占位（请后期替换为真实页面截图）",
+            "sse": "图4-7 实时更新模块效果图占位（请后期替换为真实页面截图）",
+        },
+        "difficulties": "第一个难点是图谱数据复杂。节点、边、语义关联和审计记录来自不同接口，如果组件直接处理所有格式，代码会迅速膨胀。解决方法是在 API 层和 store 层完成数据转换，让画布组件只关心可渲染节点和边。第二个难点是桌面端和移动端交互差异大。复杂图谱适合大屏，而移动端更适合线性阅读，因此项目按视口选择桌面图谱或移动讨论树。第三个难点是实时事件多。项目通过事件类型分发和局部更新减少全量刷新，同时保留必要的补拉逻辑，保证用户看到的数据最终与后端一致。第四个难点是复杂业务入口多，如果所有操作都堆在画布上会影响学习成本，因此项目通过首页、命令面板、详情面板和设置页分担入口，让用户可以按任务路径进入相应功能。",
+        "summary": "通过本项目的开发，可以系统理解 React 前端工程中函数组件、Hooks、路由管理、状态管理、接口封装、响应式布局、实时事件处理和测试验证等核心技术。项目优点是模块边界清晰、桌面与移动端体验分层、实时更新链路完整；不足是图谱场景对首次理解成本较高，真实页面截图、端到端测试和自动化部署说明仍可进一步补充。虽然提交文件名按课程要求保留 Vue.js，但报告内容已经按真实 React/Vite 代码实现编写。",
+        "future": "后续可以从三个方向继续优化。第一，增加更多端到端测试，覆盖登录、发帖、图谱切换、移动端回复和 SSE 增量刷新等完整用户流程。第二，补充真实运行截图、关键 React 源码白底截图和部署截图，使课程报告中的“先文后图”材料更接近最终答辩展示。第三，继续优化 React Flow 大图谱性能，例如节点虚拟化、布局缓存、SSE 事件批处理和移动端数据预取，从而提升大规模讨论场景下的交互稳定性。",
+    }
+
+
+def vue_markdown(diagrams: dict[str, Path]) -> str:
+    """Template-compliant report body for the real React frontend."""
+    img = lambda key: f"images/{diagrams[key].name}"
+    content = vue_react_report_content(frontend_package_versions())
+    tech_stack = "\n\n".join(content["tech_stack"])
+    functional = "\n\n".join(content["functional"])
+    placeholders = content["module_placeholders"]
+    return f"""# 《Vue.js应用开发》期末课程设计报告
+
+项目名称：RhizoDelta 图谱化非线性讨论系统前端实现
+
+代码仓库：{RHIZODELTA_REPO_URL}
+
+本地开发目录：`{RHIZODELTA_LOCAL_PATH}/frontend`
+
+## 1 项目概述
+
+### 1.1 项目背景
+
+{content['background']}
+
+### 1.2 项目目标
+
+{content['target']}
+
+## 2 技术选型
+
+### 2.1 前端技术栈
+
+{tech_stack}
+
+### 2.2 后端技术栈（可选）
+
+{content['backend']}
+
+## 3 需求分析
+
+### 3.1 功能需求
+
+{functional}
+
+### 3.2 非功能性需求
+
+{content['nonfunctional']}
+
+## 4 详细设计
+
+### 4.1 开发环境
+
+{content['environment']}
+
+![前端模块结构与运行链路]({img('frontend')})
+
+### 4.2 路由与鉴权模块
+
+{content['route']}
+
+> {placeholders['route']}
+
+![路由鉴权真实源码截图]({img('route_code')})
+
+### 4.3 图谱工作区模块
+
+{content['workspace']}
+
+> {placeholders['workspace']}
+
+![图谱工作区真实源码截图]({img('workspace_code')})
+
+### 4.4 API 封装与状态管理模块
+
+{content['api_state']}
+
+![API 请求封装真实源码截图]({img('api_client_code')})
+
+### 4.5 实时更新模块
+
+{content['sse']}
+
+> {placeholders['sse']}
+
+![SSE 事件处理真实源码截图]({img('sse_code')})
+
+### 4.6 首页与话题入口模块
+
+{content['home'][0]}
+
+{content['home'][1]}
+
+![首页入口真实源码截图]({img('home_code')})
+
+### 4.7 发布与回复编辑模块
+
+{content['post_form'][0]}
+
+{content['post_form'][1]}
+
+![发布与回复编辑真实源码截图]({img('post_form_code')})
+
+### 4.8 节点详情与治理模块
+
+{content['node_detail'][0]}
+
+{content['node_detail'][1]}
+
+![节点详情治理真实源码截图]({img('node_detail_code')})
+
+### 4.9 移动端讨论树模块
+
+{content['mobile_tree'][0]}
+
+{content['mobile_tree'][1]}
+
+![移动端讨论树真实源码截图]({img('mobile_tree_code')})
+
+### 4.10 检索与命令面板模块
+
+{content['command_palette'][0]}
+
+{content['command_palette'][1]}
+
+![检索与命令面板真实源码截图]({img('command_palette_code')})
+
+### 4.11 个人设置与界面偏好模块
+
+{content['settings'][0]}
+
+{content['settings'][1]}
+
+![个人设置与界面偏好真实源码截图]({img('settings_code')})
+
+### 4.x 难点与解决方案
+
+{content['difficulties']}
+
+## 5 总结与展望
+
+### 5.1 项目总结
+
+{content['summary']}
+
+### 5.2 未来展望
+
+{content['future']}
+"""
+
+
+def add_vue_content(doc: Document, diagrams: dict[str, Path]) -> None:
+    content = vue_react_report_content(frontend_package_versions())
+    placeholders = content["module_placeholders"]
+    effect_captions = content["effect_captions"]
+
+    remove_template_textboxes(doc)
+    remove_template_body_media(doc)
+    replace_vue_template_cover(doc)
+    replace_vue_template_toc(doc)
+
+    replace_heading(doc, "4.2 功能模块名称", "4.2 路由与鉴权模块")
+    replace_heading(doc, "4.3 功能模块名称", "4.3 图谱工作区模块")
+    replace_heading(doc, "4.4 功能模块名称", "4.4 API 封装与状态管理模块")
+    replace_heading(doc, "4.5 功能模块名称", "4.5 实时更新模块")
+    normalize_vue_template_headings(doc)
+
+    replace_section_body(doc, "1.1 项目背景", "1.2 项目目标", [content["background"]])
+    replace_section_body(doc, "1.2 项目目标", "2 技术选型", [content["target"]])
+    replace_section_body(doc, "2.1 前端技术栈", "2.2 后端技术栈（可选）", content["tech_stack"])
+    replace_section_body(doc, "2.2 后端技术栈（可选）", "3 需求分析", [content["backend"]])
+    replace_section_body(doc, "3.1 功能需求", "3.2 非功能性需求", content["functional"])
+    replace_section_body(doc, "3.2 非功能性需求", "4 详细设计", [content["nonfunctional"]])
+    replace_section_body(
+        doc,
+        "4.1 开发环境",
+        "4.2 路由与鉴权模块",
+        [content["environment"]],
+        [(diagrams["frontend"], "图4-1 前端模块结构与运行链路")],
+    )
+    replace_module_section(
+        doc,
+        "4.2 路由与鉴权模块",
+        "4.3 图谱工作区模块",
+        content["route"],
+        placeholders["route"],
+        effect_captions["route"],
+        None,
+        "图4-3 路由鉴权源码片段",
+        VUE_CODE_SNIPPETS["route"],
+    )
+    replace_module_section(
+        doc,
+        "4.3 图谱工作区模块",
+        "4.4 API 封装与状态管理模块",
+        content["workspace"],
+        placeholders["workspace"],
+        effect_captions["workspace"],
+        None,
+        "图4-5 图谱工作区源码片段",
+        VUE_CODE_SNIPPETS["workspace"],
+    )
+    replace_module_section(
+        doc,
+        "4.4 API 封装与状态管理模块",
+        "4.5 实时更新模块",
+        content["api_state"],
+        None,
+        None,
+        None,
+        "图4-6 API 请求封装源码片段",
+        VUE_CODE_SNIPPETS["api_state"],
+    )
+    cursor = replace_module_section(
+        doc,
+        "4.5 实时更新模块",
+        "4.6 ………",
+        content["sse"],
+        placeholders["sse"],
+        effect_captions["sse"],
+        None,
+        "图4-8 SSE 事件处理源码片段",
+        VUE_CODE_SNIPPETS["sse"],
+    )
+    delete_section_body(doc, "4.6 ………", "4.x 难点与解决方案")
+    cursor = insert_module_after(cursor, "4.6 首页与话题入口模块", content["home"], None, "图4-9 首页入口源码片段", VUE_CODE_SNIPPETS["home"])
+    cursor = insert_module_after(cursor, "4.7 发布与回复编辑模块", content["post_form"], None, "图4-10 发布与回复编辑源码片段", VUE_CODE_SNIPPETS["post_form"])
+    cursor = insert_module_after(cursor, "4.8 节点详情与治理模块", content["node_detail"], None, "图4-11 节点详情治理源码片段", VUE_CODE_SNIPPETS["node_detail"])
+    cursor = insert_module_after(cursor, "4.9 移动端讨论树模块", content["mobile_tree"], None, "图4-12 移动端讨论树源码片段", VUE_CODE_SNIPPETS["mobile_tree"])
+    cursor = insert_module_after(cursor, "4.10 检索与命令面板模块", content["command_palette"], None, "图4-13 检索与命令面板源码片段", VUE_CODE_SNIPPETS["command_palette"])
+    insert_module_after(cursor, "4.11 个人设置与界面偏好模块", content["settings"], None, "图4-14 个人设置与界面偏好源码片段", VUE_CODE_SNIPPETS["settings"])
+    replace_section_body(doc, "4.x 难点与解决方案", "5 总结与展望", [content["difficulties"]])
+    replace_section_body(doc, "5.1 项目总结", "5.2 未来展望", [content["summary"]])
+    replace_section_body_to_end(doc, "5.2 未来展望", [content["future"]])
+
+
 def html_doc(title: str, markdown_body: str, image_paths: Iterable[Path]) -> str:
     image_map = {}
     for path in image_paths:
@@ -786,6 +1895,8 @@ def html_doc(title: str, markdown_body: str, image_paths: Iterable[Path]) -> str
             lines.append(f"<h3>{html.escape(line[4:])}</h3>")
         elif line.startswith("- "):
             lines.append(f"<p>• {html.escape(line[2:])}</p>")
+        elif line.startswith("> "):
+            lines.append(f'<p class="placeholder">{html.escape(line[2:])}</p>')
         elif line.startswith("![") and "](" in line and line.endswith(")"):
             alt = line[2:line.find("]")]
             src = line[line.find("(") + 1:-1]
@@ -808,6 +1919,7 @@ body {{ font-family: SimSun, serif; font-size: 14px; line-height: 1.65; }}
 h1 {{ text-align: center; font-family: SimHei, sans-serif; }}
 h2, h3 {{ font-family: SimHei, sans-serif; }}
 p {{ text-indent: 2em; }}
+p.placeholder {{ border: 1px solid #94a3b8; background: #f8fafc; padding: 20px; text-align: center; text-indent: 0; }}
 img {{ border: 1px solid #ddd; }}
 </style>
 </head>
@@ -827,6 +1939,8 @@ def build_report(
     image_paths: list[Path],
     content_builder,
     basename: str,
+    doc_factory=None,
+    convert_doc: bool = False,
 ) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "generated").mkdir(exist_ok=True)
@@ -838,18 +1952,23 @@ def build_report(
 
     md_path.write_text(markdown, encoding="utf-8")
 
-    doc = Document()
+    doc = doc_factory() if doc_factory else Document()
     set_doc_defaults(doc)
-    add_cover(doc, course, doc_title, subtitle)
-    add_toc(doc)
+    if doc_factory is None:
+        add_cover(doc, course, doc_title, subtitle)
+        add_toc(doc)
     content_builder(doc)
-    for section in doc.sections:
-        add_page_number(section)
+    if doc_factory is None:
+        for section in doc.sections:
+            add_page_number(section)
     doc.save(docx_path)
 
     html_content = html_doc(doc_title, markdown, image_paths)
     html_path.write_text(html_content, encoding="utf-8")
-    doc_path.write_text(html_content, encoding="utf-8")
+    if convert_doc:
+        libreoffice_convert(docx_path, "doc", out_dir)
+    else:
+        doc_path.write_text(html_content, encoding="utf-8")
 
 
 def write_readme() -> None:
@@ -893,6 +2012,11 @@ def main() -> None:
         shutil.copyfile(path, vpath)
         java_diagrams[key] = jpath
         vue_diagrams[key] = vpath
+    vue_diagrams["route_code"] = route_source_snapshot(VUE_DIR)
+    vue_diagrams["sse_code"] = sse_source_snapshot(VUE_DIR)
+    vue_diagrams["workspace_code"] = workspace_source_snapshot(VUE_DIR)
+    vue_diagrams["api_client_code"] = api_client_source_snapshot(VUE_DIR)
+    vue_diagrams.update(refresh_extra_vue_source_snapshots())
 
     java_md = javaee_markdown(java_diagrams)
     vue_md = vue_markdown(vue_diagrams)
@@ -919,6 +2043,8 @@ def main() -> None:
         list(vue_diagrams.values()),
         lambda doc: add_vue_content(doc, vue_diagrams),
         vue_basename,
+        doc_factory=vue_template_document,
+        convert_doc=True,
     )
     write_readme()
     print("Generated RhizoDelta course reports.")
