@@ -51,7 +51,7 @@ def handle_run() -> None:
 
     known_faces = face_recognize.load_known_faces()
     capture = camera.open_camera()
-    print("按 q 退出签到流程。")
+    print("按 Ctrl+C 退出签到流程。")
 
     try:
         while True:
@@ -60,13 +60,13 @@ def handle_run() -> None:
                 print("读取摄像头帧失败")
                 break
 
-            rgb_frame = preprocess.prepare_frame(frame, config.FRAME_SCALE)
-            locations = face_detect.locate_faces(rgb_frame)
+            gray_frame = preprocess.prepare_frame(frame, config.FRAME_SCALE)
+            locations = face_detect.locate_faces(gray_frame)
             matches = face_recognize.match_faces(
-                rgb_frame,
+                gray_frame,
                 locations,
                 known_faces,
-                config.MATCH_THRESHOLD,
+                config.LBPH_CONFIDENCE_THRESHOLD,
             )
 
             status_text = "No face"
@@ -83,8 +83,9 @@ def handle_run() -> None:
             print()
             print(f"Status: {status_text}")
 
-            if cv2.waitKey(1) & 0xFF == ord("q"):
-                break
+            cv2.waitKey(1)
+    except KeyboardInterrupt:
+        print("\n签到流程已退出。")
     finally:
         capture.release()
 

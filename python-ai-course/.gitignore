@@ -4,5 +4,8 @@ __pycache__/
 venv/
 data/attendance.csv
 data/encodings/*.json
+data/encodings/*.yml
 data/exports/*
 !data/exports/.gitkeep
+data/faces/*
+!data/faces/.gitkeep

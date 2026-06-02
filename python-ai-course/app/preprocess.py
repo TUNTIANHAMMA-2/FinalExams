@@ -5,8 +5,8 @@ import cv2
 
 def prepare_frame(frame, scale: float):
     small = cv2.resize(frame, (0, 0), fx=scale, fy=scale)
-    rgb = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
-    return rgb
+    gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+    return cv2.equalizeHist(gray)
 
 
 def to_ascii_gray(frame, width: int):

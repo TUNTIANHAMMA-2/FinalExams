@@ -3,81 +3,163 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-import face_recognition
+import cv2
 import numpy as np
 
-from app import config, storage
+from app import config, face_detect, storage
 
 
 @dataclass
 class KnownFace:
+    label: int
     user_id: str
     name: str
-    encoding: list[float]
+    sample_path: str
 
 
-def encoding_path(user_id: str) -> Path:
-    return config.ENCODINGS_DIR / f"{user_id}.json"
+@dataclass
+class KnownFaceStore:
+    recognizer: object | None
+    faces_by_label: dict[int, KnownFace]
 
 
-def encode_image(image_path: str) -> list[float]:
-    image = face_recognition.load_image_file(image_path)
-    encodings = face_recognition.face_encodings(image)
-    if not encodings:
-        raise ValueError("未在图片中检测到可用人脸")
-    return encodings[0].tolist()
+def _create_recognizer():
+    if not hasattr(cv2, "face") or not hasattr(cv2.face, "LBPHFaceRecognizer_create"):
+        raise RuntimeError(
+            "当前 OpenCV 缺少 cv2.face 模块。请安装 opencv-contrib-python，而不是 opencv-python。"
+        )
+    return cv2.face.LBPHFaceRecognizer_create()
+
+
+def _sample_path(user_id: str) -> Path:
+    return config.FACES_DIR / f"{user_id}.png"
+
+
+def _load_registry() -> dict:
+    return storage.load_json(config.LABELS_FILE, {"next_label": 0, "users": {}})
+
+
+def _save_registry(registry: dict) -> None:
+    storage.save_json(config.LABELS_FILE, registry)
+
+
+def _normalize_face(gray_frame, location):
+    x, y, width, height = location
+    face = gray_frame[y : y + height, x : x + width]
+    face = cv2.resize(face, config.FACE_IMAGE_SIZE)
+    return cv2.equalizeHist(face)
+
+
+def _load_gray_image(image_path: str):
+    image = cv2.imread(image_path)
+    if image is None:
+        raise ValueError(f"无法读取图片: {image_path}")
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    return cv2.equalizeHist(gray)
+
+
+def _registered_faces(registry: dict) -> list[KnownFace]:
+    faces = []
+    for payload in registry["users"].values():
+        faces.append(
+            KnownFace(
+                label=int(payload["label"]),
+                user_id=payload["user_id"],
+                name=payload["name"],
+                sample_path=payload["sample_path"],
+            )
+        )
+    return faces
+
+
+def rebuild_model() -> None:
+    registry = _load_registry()
+    faces = _registered_faces(registry)
+    samples = []
+    labels = []
+
+    for face in faces:
+        sample_path = Path(face.sample_path)
+        if not sample_path.exists():
+            continue
+        sample = cv2.imread(str(sample_path), cv2.IMREAD_GRAYSCALE)
+        if sample is None:
+            continue
+        samples.append(sample)
+        labels.append(face.label)
+
+    if not samples:
+        return
+
+    recognizer = _create_recognizer()
+    recognizer.train(samples, np.array(labels, dtype=np.int32))
+    config.MODEL_FILE.parent.mkdir(parents=True, exist_ok=True)
+    recognizer.write(str(config.MODEL_FILE))
 
 
 def register_face(user_id: str, name: str, image_path: str) -> None:
     storage.ensure_data_dirs()
-    encoding = encode_image(image_path)
-    storage.save_json(
-        encoding_path(user_id),
-        {"user_id": user_id, "name": name, "encoding": encoding},
-    )
+    gray = _load_gray_image(image_path)
+    face_locations = face_detect.locate_faces(gray)
+    face_location = face_detect.largest_face(face_locations)
+    if face_location is None:
+        raise ValueError("未在图片中检测到可用人脸")
+
+    normalized = _normalize_face(gray, face_location)
+    sample_path = _sample_path(user_id)
+    cv2.imwrite(str(sample_path), normalized)
+
+    registry = _load_registry()
+    existing = registry["users"].get(user_id)
+    label = int(existing["label"]) if existing else int(registry["next_label"])
+    if existing is None:
+        registry["next_label"] = label + 1
+
+    registry["users"][user_id] = {
+        "label": label,
+        "user_id": user_id,
+        "name": name,
+        "sample_path": str(sample_path),
+    }
+    _save_registry(registry)
+    rebuild_model()
 
 
-def load_known_faces() -> list[KnownFace]:
+def load_known_faces() -> KnownFaceStore:
     storage.ensure_data_dirs()
-    faces: list[KnownFace] = []
-    for path in config.ENCODINGS_DIR.glob("*.json"):
-        payload = storage.load_json(path, {})
-        if payload:
-            faces.append(
-                KnownFace(
-                    user_id=payload["user_id"],
-                    name=payload["name"],
-                    encoding=payload["encoding"],
-                )
-            )
-    return faces
+    registry = _load_registry()
+    faces = _registered_faces(registry)
+    faces_by_label = {face.label: face for face in faces}
+    if not config.MODEL_FILE.exists() or not faces_by_label:
+        return KnownFaceStore(recognizer=None, faces_by_label=faces_by_label)
+
+    recognizer = _create_recognizer()
+    recognizer.read(str(config.MODEL_FILE))
+    return KnownFaceStore(recognizer=recognizer, faces_by_label=faces_by_label)
 
 
-def match_faces(rgb_frame, face_locations, known_faces: list[KnownFace], threshold: float):
+def match_faces(gray_frame, face_locations, known_faces: KnownFaceStore, threshold: float):
     if not face_locations:
         return []
 
-    current_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
     results = []
-    known_vectors = [np.array(face.encoding) for face in known_faces]
 
-    for location, current_encoding in zip(face_locations, current_encodings):
-        if not known_vectors:
+    for location in face_locations:
+        if known_faces.recognizer is None:
             results.append({"location": location, "matched": False, "name": "Unknown", "user_id": ""})
             continue
 
-        distances = face_recognition.face_distance(known_vectors, current_encoding)
-        best_index = int(np.argmin(distances))
-        best_distance = float(distances[best_index])
-        matched = best_distance <= threshold
-        face = known_faces[best_index] if matched else None
+        sample = _normalize_face(gray_frame, location)
+        label, confidence = known_faces.recognizer.predict(sample)
+        face = known_faces.faces_by_label.get(int(label))
+        matched = face is not None and float(confidence) <= threshold
         results.append(
             {
                 "location": location,
                 "matched": matched,
                 "name": face.name if face else "Unknown",
                 "user_id": face.user_id if face else "",
-                "distance": best_distance,
+                "confidence": float(confidence),
             }
         )
     return results
