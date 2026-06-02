@@ -1,73 +1,78 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
-import { Users, Camera, Activity, Database, ShieldCheck } from 'lucide-react';
+import { Users, Camera, Activity, Database, Fingerprint } from 'lucide-react';
 
 const Layout: React.FC = () => {
-  const [time, setTime] = useState(new Date());
   const location = useLocation();
 
-  useEffect(() => {
-    const timer = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
   const navItems = [
-    { path: '/live', label: 'LIVE_STREAM', icon: <Camera size={18} /> },
-    { path: '/register', label: 'REGISTER_FACE', icon: <Users size={18} /> },
-    { path: '/records', label: 'DATA_RECORDS', icon: <Database size={18} /> },
-    { path: '/stats', label: 'SYS_ANALYTICS', icon: <Activity size={18} /> },
+    { path: '/live', label: '实时签到 (Live)', icon: <Camera size={20} /> },
+    { path: '/register', label: '人脸注册 (Register)', icon: <Users size={20} /> },
+    { path: '/records', label: '签到记录 (Records)', icon: <Database size={20} /> },
+    { path: '/stats', label: '数据分析 (Analytics)', icon: <Activity size={20} /> },
   ];
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', flexDirection: 'column' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', flexDirection: 'column', backgroundColor: 'var(--bg-color)' }}>
       {/* Header */}
       <header style={{ 
-        borderBottom: '1px solid var(--accent-color)', 
+        backgroundColor: 'var(--surface)', 
+        borderBottom: '1px solid var(--border)', 
         padding: '16px 24px',
         display: 'flex',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        backgroundColor: 'rgba(0, 15, 0, 0.8)',
-        backdropFilter: 'blur(8px)',
-        zIndex: 100
+        justifyContent: 'space-between',
+        position: 'sticky',
+        top: 0,
+        zIndex: 10
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', background: 'var(--accent-color)', color: 'var(--bg-color)' }}>
-            <ShieldCheck size={24} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ 
+            backgroundColor: 'var(--primary)', 
+            color: 'white', 
+            padding: '8px', 
+            borderRadius: '8px',
+            display: 'flex',
+            alignItems: 'center'
+          }}>
+            <Fingerprint size={24} />
           </div>
           <div>
-            <h1 style={{ fontSize: '1.2rem', margin: 0, letterSpacing: '2px' }} className="glow-text">
-              ASCII.FACE_REC_SYS <span className="blinker">_</span>
+            <h1 style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0, color: 'var(--text-main)' }}>
+              智能人脸签到系统
             </h1>
-            <div style={{ fontSize: '0.7rem', color: 'var(--cyan-color)' }}>KERNEL_VERSION // 1.0.4.stable</div>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>
+              Face Recognition Attendance System
+            </p>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)', textAlign: 'right' }}>
-            <div>SYSTEM_TIME</div>
-            <div className="glow-text" style={{ fontSize: '1.1rem', color: 'var(--text-color)' }}>
-              {time.toLocaleTimeString()}
-            </div>
+        
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: '0.875rem', fontWeight: 500 }}>Admin User</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>System Administrator</div>
+          </div>
+          <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: 'var(--text-muted)' }}>
+            A
           </div>
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      {/* Main Content */}
+      <div style={{ display: 'flex', flex: 1, maxWidth: '1440px', margin: '0 auto', width: '100%' }}>
         {/* Sidebar */}
         <aside style={{ 
           width: '260px', 
-          borderRight: '1px solid var(--border-color)',
-          backgroundColor: 'rgba(2, 5, 2, 0.8)',
-          padding: '32px 0',
+          backgroundColor: 'var(--bg-color)',
+          padding: '32px 24px',
           display: 'flex',
           flexDirection: 'column',
-          zIndex: 90
+          gap: '8px'
         }}>
-          <div style={{ padding: '0 24px', marginBottom: '24px', fontSize: '0.75rem', color: 'var(--text-dim)', letterSpacing: '1px' }}>
-            [ DIRECTORY_ACCESS ]
+          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.05em' }}>
+            Menu
           </div>
-          <nav style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '0 12px' }}>
+          <nav style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             {navItems.map((item) => {
               const isActive = location.pathname.startsWith(item.path);
               return (
@@ -75,42 +80,40 @@ const Layout: React.FC = () => {
                   key={item.path} 
                   to={item.path}
                   style={{
-                    padding: '12px 16px',
+                    padding: '10px 16px',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '12px',
-                    color: isActive ? 'var(--bg-color)' : 'var(--text-color)',
-                    backgroundColor: isActive ? 'var(--accent-color)' : 'transparent',
-                    border: isActive ? '1px solid var(--accent-color)' : '1px solid transparent',
+                    borderRadius: '6px',
+                    color: isActive ? 'var(--primary)' : 'var(--text-muted)',
+                    backgroundColor: isActive ? '#eff6ff' : 'transparent',
                     textDecoration: 'none',
+                    fontWeight: isActive ? 500 : 400,
                     transition: 'all 0.2s',
-                    boxShadow: isActive ? '0 0 10px rgba(0,255,65,0.3)' : 'none',
-                    fontWeight: isActive ? 'bold' : 'normal'
                   }}
                   onMouseEnter={(e) => {
-                    if (!isActive) e.currentTarget.style.borderColor = 'var(--border-light)';
+                    if (!isActive) {
+                      e.currentTarget.style.backgroundColor = '#e2e8f0';
+                      e.currentTarget.style.color = 'var(--text-main)';
+                    }
                   }}
                   onMouseLeave={(e) => {
-                    if (!isActive) e.currentTarget.style.borderColor = 'transparent';
+                    if (!isActive) {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                      e.currentTarget.style.color = 'var(--text-muted)';
+                    }
                   }}
                 >
                   {item.icon}
-                  <span>
-                    {isActive ? '» ' : '  '}{item.label}
-                  </span>
+                  <span>{item.label}</span>
                 </NavLink>
               );
             })}
           </nav>
-          
-          <div style={{ marginTop: 'auto', padding: '24px', fontSize: '0.7rem', color: 'var(--text-dark)' }}>
-            SECURE_CONN_ESTABLISHED<br/>
-            ENCRYPTION: AES-256
-          </div>
         </aside>
 
-        {/* Page View */}
-        <main style={{ flex: 1, padding: '40px', overflowY: 'auto', position: 'relative', zIndex: 10 }}>
+        {/* Page Content */}
+        <main style={{ flex: 1, padding: '32px' }}>
           <Outlet />
         </main>
       </div>

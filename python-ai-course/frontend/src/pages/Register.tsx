@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AlertCircle, Camera, CheckCircle, Upload } from 'lucide-react';
+import { AlertCircle, Camera, CheckCircle, Loader2 } from 'lucide-react';
 import { registerFace } from '../api';
 
 const Register: React.FC = () => {
@@ -36,7 +36,7 @@ const Register: React.FC = () => {
         await videoRef.current.play();
       }
       setStatus('camera');
-      setMessage('CAMERA_ONLINE: 请保持正脸清晰并点击执行注册');
+      setMessage('摄像头已启动，请保持正脸清晰');
     } catch (error) {
       setStatus('error');
       setMessage(error instanceof Error ? error.message : '摄像头启动失败');
@@ -65,7 +65,7 @@ const Register: React.FC = () => {
     event.preventDefault();
     try {
       setStatus('loading');
-      setMessage('EXTRACTING_FEATURES_AND_TRAINING_MODEL...');
+      setMessage('正在检测人脸并训练 LBPH 模型...');
       const imageData = captureFrame();
       setSnapshot(imageData);
       const response = await registerFace(userId, name, imageData);
@@ -82,37 +82,37 @@ const Register: React.FC = () => {
   }, []);
 
   return (
-    <div style={{ maxWidth: '1000px' }}>
+    <div style={{ maxWidth: '900px', margin: '0 auto' }}>
       <canvas ref={canvasRef} style={{ display: 'none' }} />
 
       <div style={{ marginBottom: '32px' }}>
-        <h2 className="glow-text" style={{ margin: 0, fontSize: '1.5rem' }}>&gt; /register_identity</h2>
-        <div style={{ color: 'var(--text-dim)', fontSize: '0.8rem', marginTop: '4px' }}>ENROLL NEW SUBJECT INTO RECOGNITION DATABASE</div>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 600, margin: '0 0 8px 0' }}>人脸注册</h2>
+        <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.875rem' }}>录入学生基本信息并采集面部特征模型</p>
       </div>
 
-      <div className="cyber-card">
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+      <div className="card">
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <div style={{ display: 'flex', gap: '24px' }}>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label style={{ color: 'var(--cyan-color)', fontSize: '0.8rem', letterSpacing: '1px' }}>[ SUBJECT_ID ]</label>
+              <label style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-main)' }}>学号 (User ID)</label>
               <input
-                className="cyber-input"
+                className="input-field"
                 type="text"
                 value={userId}
                 onChange={(event) => setUserId(event.target.value)}
-                placeholder="e.g. 2026001"
+                placeholder="例如: 2026001"
                 required
               />
             </div>
 
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label style={{ color: 'var(--cyan-color)', fontSize: '0.8rem', letterSpacing: '1px' }}>[ FULL_NAME ]</label>
+              <label style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-main)' }}>姓名 (Full Name)</label>
               <input
-                className="cyber-input"
+                className="input-field"
                 type="text"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                placeholder="e.g. 张三"
+                placeholder="例如: 张三"
                 required
               />
             </div>
@@ -120,62 +120,69 @@ const Register: React.FC = () => {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 180px', gap: '16px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label style={{ color: 'var(--cyan-color)', fontSize: '0.8rem', letterSpacing: '1px' }}>[ BIOMETRIC_CAPTURE ]</label>
+              <label style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-main)' }}>面部特征采集</label>
               <div style={{
-                minHeight: '280px',
-                border: '1px dashed var(--border-color)',
-                background: 'rgba(0, 10, 0, 0.3)',
+                height: '280px',
+                border: '2px dashed var(--border)',
+                borderRadius: 'var(--radius)',
+                backgroundColor: '#f8fafc',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: 'var(--text-dim)',
+                color: 'var(--text-muted)',
+                overflow: 'hidden',
               }}>
                 <video
                   ref={videoRef}
                   playsInline
                   muted
-                  style={{ width: '100%', height: '280px', objectFit: 'cover', display: status === 'camera' || status === 'loading' || status === 'success' ? 'block' : 'none' }}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: status === 'camera' || status === 'loading' || status === 'success' ? 'block' : 'none' }}
                 />
                 {status === 'idle' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
-                    <Camera size={48} opacity={0.5} />
-                    <div>CAM_PREVIEW_FEED_OFFLINE</div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-dark)' }}>Click START_CAMERA before enrollment.</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                    <Camera size={48} strokeWidth={1.5} />
+                    <div style={{ fontWeight: 500 }}>摄像头未开启</div>
+                    <div style={{ fontSize: '0.75rem' }}>先点击“启动摄像头”，再采集并注册</div>
                   </div>
                 )}
               </div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label style={{ color: 'var(--cyan-color)', fontSize: '0.8rem', letterSpacing: '1px' }}>[ LAST_CAPTURE ]</label>
-              <div style={{ border: '1px solid var(--border-color)', minHeight: '140px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {snapshot ? <img src={snapshot} alt="Last captured face" style={{ width: '100%' }} /> : <span style={{ color: 'var(--text-dark)', fontSize: '0.75rem' }}>NO_CAPTURE</span>}
+              <label style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-main)' }}>最近采集</label>
+              <div style={{ minHeight: '130px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                {snapshot ? <img src={snapshot} alt="最近采集" style={{ width: '100%' }} /> : <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>暂无</span>}
               </div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-color)', paddingTop: '24px' }}>
-            <div style={{ fontSize: '0.8rem' }}>
-              {message && status !== 'loading' && (
-                <span className={status === 'error' ? 'glow-error' : 'glow-text'} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {status === 'error' ? <AlertCircle size={16} /> : <CheckCircle size={16} />} {message}
-                </span>
-              )}
-              {status === 'loading' && (
-                <span className="glow-cyan blinker" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  EXTRACTING_FEATURES_AND_TRAINING_MODEL...
-                </span>
-              )}
+          {message && (
+            <div style={{
+              padding: '12px',
+              borderRadius: '6px',
+              backgroundColor: status === 'error' ? 'var(--danger-bg)' : 'var(--success-bg)',
+              color: status === 'error' ? '#991b1b' : '#065f46',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontSize: '0.875rem',
+            }}>
+              {status === 'error' ? <AlertCircle size={18} /> : <CheckCircle size={18} />}
+              {message}
             </div>
+          )}
 
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <button className="cyber-button" type="button" onClick={startCamera} disabled={status === 'loading'}>
-                <Camera size={18} /> START_CAMERA
-              </button>
-              <button className="cyber-button" type="submit" disabled={status === 'loading' || !userId || !name}>
-                <Upload size={18} /> {status === 'loading' ? 'PROCESSING...' : 'EXECUTE_ENROLLMENT'}
-              </button>
-            </div>
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: '24px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+            <button className="btn btn-outline" type="button" onClick={startCamera} disabled={status === 'loading'}>
+              <Camera size={16} /> 启动摄像头
+            </button>
+            <button className="btn" type="submit" disabled={status === 'loading' || !userId || !name}>
+              {status === 'loading' ? (
+                <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> 处理中...</>
+              ) : (
+                <><Camera size={16} /> 采集并注册</>
+              )}
+            </button>
           </div>
         </form>
       </div>

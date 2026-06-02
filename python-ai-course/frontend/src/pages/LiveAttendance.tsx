@@ -11,20 +11,17 @@ const RECOGNITION_INTERVAL_MS = 1600;
 type StreamStatus = 'idle' | 'starting' | 'running' | 'error';
 
 function frameToAscii(video: HTMLVideoElement, canvas: HTMLCanvasElement) {
-  const videoWidth = video.videoWidth;
-  const videoHeight = video.videoHeight;
-
-  if (!videoWidth || !videoHeight) {
-    return 'WAITING_FOR_CAMERA_FRAME';
+  if (!video.videoWidth || !video.videoHeight) {
+    return '正在等待摄像头画面...';
   }
 
-  const aspectRatio = videoHeight / videoWidth;
+  const aspectRatio = video.videoHeight / video.videoWidth;
   const width = ASCII_WIDTH;
   const height = Math.max(1, Math.round(width * aspectRatio * 0.46));
   const context = canvas.getContext('2d');
 
   if (!context) {
-    return 'CANVAS_CONTEXT_UNAVAILABLE';
+    return '无法读取 Canvas 上下文';
   }
 
   canvas.width = width;
@@ -72,10 +69,10 @@ const LiveAttendance: React.FC = () => {
   const recognitionIntervalRef = useRef<number | null>(null);
   const recognizingRef = useRef(false);
 
-  const [status, setStatus] = useState<StreamStatus>('idle');
-  const [asciiFrame, setAsciiFrame] = useState('\n\n    [ SIGNAL_LOST ]\n    AWAITING_CONNECTION...');
-  const [errorMessage, setErrorMessage] = useState('');
+  const [streamStatus, setStreamStatus] = useState<StreamStatus>('idle');
+  const [asciiFrame, setAsciiFrame] = useState('请点击右上角“启动摄像头”');
   const [recognition, setRecognition] = useState<RecognitionResponse | null>(null);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const stopCamera = () => {
     if (asciiIntervalRef.current !== null) {
@@ -94,8 +91,8 @@ const LiveAttendance: React.FC = () => {
       videoRef.current.srcObject = null;
     }
 
-    setStatus('idle');
-    setAsciiFrame('\n\n    [ SIGNAL_LOST ]\n    AWAITING_CONNECTION...');
+    setStreamStatus('idle');
+    setAsciiFrame('请点击右上角“启动摄像头”');
   };
 
   const recognizeCurrentFrame = async () => {
@@ -118,13 +115,13 @@ const LiveAttendance: React.FC = () => {
 
   const startCamera = async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
-      setStatus('error');
+      setStreamStatus('error');
       setErrorMessage('当前浏览器不支持摄像头 API');
       return;
     }
 
     try {
-      setStatus('starting');
+      setStreamStatus('starting');
       setErrorMessage('');
 
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -141,7 +138,7 @@ const LiveAttendance: React.FC = () => {
       videoRef.current.srcObject = stream;
       await videoRef.current.play();
 
-      setStatus('running');
+      setStreamStatus('running');
       asciiIntervalRef.current = window.setInterval(() => {
         if (videoRef.current && asciiCanvasRef.current) {
           setAsciiFrame(frameToAscii(videoRef.current, asciiCanvasRef.current));
@@ -153,7 +150,7 @@ const LiveAttendance: React.FC = () => {
       void recognizeCurrentFrame();
     } catch (error) {
       stopCamera();
-      setStatus('error');
+      setStreamStatus('error');
       setErrorMessage(error instanceof Error ? error.message : '摄像头启动失败');
     }
   };
@@ -163,105 +160,118 @@ const LiveAttendance: React.FC = () => {
   }, []);
 
   const primary = recognition?.primary_match;
-  const recognitionLabel = (() => {
-    if (status === 'error') return 'CAMERA_ERROR';
-    if (!recognition) return status === 'running' ? 'SCANNING_FRAME...' : 'AWAITING_SUBJECT...';
-    if (recognition.status === 'success') return 'ACCESS_GRANTED';
-    if (recognition.status === 'duplicate') return 'DUPLICATE_SIGN_IN';
-    if (recognition.status === 'no_model') return 'NO_REGISTERED_MODEL';
-    if (recognition.status === 'no_face') return 'NO_FACE_DETECTED';
-    if (recognition.status === 'unknown') return 'ACCESS_DENIED';
-    return recognition.status.toUpperCase();
+  const recognitionStatus = (() => {
+    if (streamStatus === 'error') return 'error';
+    if (!recognition) return streamStatus === 'running' ? 'recognizing' : 'idle';
+    if (recognition.status === 'success' || recognition.status === 'duplicate') return 'success';
+    if (recognition.status === 'unknown') return 'unknown';
+    return 'recognizing';
   })();
 
-  const isPositive = recognition?.status === 'success' || recognition?.status === 'duplicate';
-  const isNegative = status === 'error' || recognition?.status === 'unknown';
+  const recognitionText = (() => {
+    if (streamStatus === 'error') return '摄像头异常';
+    if (!recognition) return streamStatus === 'running' ? '识别中...' : '等待识别...';
+    if (recognition.status === 'success') return '签到成功';
+    if (recognition.status === 'duplicate') return '重复签到';
+    if (recognition.status === 'no_model') return '尚未注册人脸模型';
+    if (recognition.status === 'no_face') return '未检测到人脸';
+    if (recognition.status === 'unknown') return '未识别用户';
+    return recognition.status;
+  })();
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '24px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', height: '100%' }}>
       <video ref={videoRef} playsInline muted style={{ display: 'none' }} />
       <canvas ref={asciiCanvasRef} style={{ display: 'none' }} />
       <canvas ref={captureCanvasRef} style={{ display: 'none' }} />
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h2 className="glow-text" style={{ margin: 0, fontSize: '1.5rem' }}>&gt; /live_stream_feed</h2>
-          <div style={{ color: 'var(--text-dim)', fontSize: '0.8rem', marginTop: '4px' }}>BROWSER CAMERA + PYTHON OPENCV API</div>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 600, margin: '0 0 4px 0' }}>实时签到</h2>
+          <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.875rem' }}>使用浏览器摄像头 + Python OpenCV API 完成人脸识别与自动签到</p>
         </div>
-        <div style={{ display: 'flex', gap: '16px' }}>
-          <button className="cyber-button" onClick={startCamera} disabled={status === 'starting' || status === 'running'}>
-            <Play size={16} /> INITIALIZE_CAM
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button className="btn" onClick={startCamera} disabled={streamStatus === 'starting' || streamStatus === 'running'}>
+            <Play size={16} /> 启动摄像头
           </button>
-          <button className="cyber-button" onClick={stopCamera} disabled={status === 'idle'} style={{ borderColor: 'var(--warning-color)', color: status === 'running' ? 'var(--warning-color)' : 'var(--text-dark)' }}>
-            <Square size={16} /> TERMINATE_CONN
+          <button className="btn btn-outline" onClick={stopCamera} disabled={streamStatus === 'idle'}>
+            <Square size={16} /> 停止
           </button>
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '32px', flex: 1, minHeight: 0 }}>
-        <div className="cyber-card" style={{ flex: 2, display: 'flex', flexDirection: 'column', padding: '16px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
-            <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem' }}>CAM_01 [ASCII_RENDER_REALTIME]</span>
-            <span style={{ color: status === 'running' ? 'var(--accent-color)' : 'var(--error-color)', fontSize: '0.8rem' }} className={status === 'running' ? 'blinker' : ''}>
-              {status === 'running' ? '● LIVE' : '○ OFFLINE'}
-            </span>
+      <div style={{ display: 'flex', gap: '24px', flex: 1, minHeight: 0 }}>
+        <div className="card" style={{ flex: 2, display: 'flex', flexDirection: 'column', padding: '0' }}>
+          <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontWeight: 500 }}>摄像头画面 (ASCII 渲染)</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: streamStatus === 'running' ? 'var(--success)' : 'var(--danger)' }} />
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                {streamStatus === 'running' ? '运行中 (Live)' : '未启动 (Offline)'}
+              </span>
+            </div>
           </div>
 
-          <div className="ascii-monitor" style={{ flex: 1 }}>
-            <pre style={{
-              fontSize: '10px',
-              lineHeight: '1',
-              whiteSpace: 'pre',
-              fontFamily: 'var(--font-mono)',
-              color: isPositive ? 'var(--accent-color)' : (isNegative ? 'var(--error-color)' : 'var(--text-color)'),
-              transition: 'color 0.3s',
-              overflow: 'hidden',
-              margin: 0,
-            }}>
-              {asciiFrame}
-            </pre>
+          <div style={{ padding: '24px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+            <div className="ascii-cam" style={{ flex: 1 }}>
+              <pre style={{
+                fontSize: '10px',
+                lineHeight: '1',
+                whiteSpace: 'pre',
+                fontFamily: 'var(--font-mono)',
+                color: recognitionStatus === 'success' ? '#10b981' : (recognitionStatus === 'unknown' || recognitionStatus === 'error' ? '#ef4444' : '#e5e7eb'),
+                transition: 'color 0.3s',
+                margin: 0,
+                overflow: 'hidden',
+              }}>
+                {asciiFrame}
+              </pre>
+            </div>
           </div>
         </div>
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          <div className="cyber-card" style={{ flex: 1 }}>
-            <h3 style={{ fontSize: '0.9rem', marginBottom: '16px', color: 'var(--cyan-color)' }}>[ CURRENT_STATE ]</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 'calc(100% - 40px)' }}>
-              {!isPositive && !isNegative && <ScanFace size={48} color="var(--cyan-color)" className={status === 'running' ? 'blinker' : ''} style={{ marginBottom: '16px' }} />}
-              {isPositive && <UserCheck size={48} color="var(--accent-color)" style={{ marginBottom: '16px' }} />}
-              {isNegative && <AlertTriangle size={48} color="var(--error-color)" style={{ marginBottom: '16px' }} />}
-              <div className={isPositive ? 'glow-text' : (isNegative ? 'glow-error' : 'glow-cyan')} style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>
-                {recognitionLabel}
-              </div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginTop: '8px' }}>
-                FACE_COUNT: {recognition?.face_count ?? 0}
-              </div>
-              {errorMessage && <div style={{ marginTop: '12px', color: 'var(--error-color)', fontSize: '0.8rem' }}>ERROR: {errorMessage}</div>}
+          <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+            <h3 style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '24px', alignSelf: 'flex-start', width: '100%' }}>当前状态</h3>
+
+            {recognitionStatus === 'success' && <UserCheck size={48} color="var(--success)" style={{ marginBottom: '16px' }} />}
+            {recognitionStatus === 'unknown' || recognitionStatus === 'error' ? <AlertTriangle size={48} color="var(--danger)" style={{ marginBottom: '16px' }} /> : null}
+            {recognitionStatus === 'idle' || recognitionStatus === 'recognizing' ? <ScanFace size={48} color="var(--primary)" style={{ marginBottom: '16px' }} /> : null}
+
+            <div style={{
+              fontSize: '1.25rem',
+              fontWeight: 600,
+              color: recognitionStatus === 'success' ? 'var(--success)' : (recognitionStatus === 'unknown' || recognitionStatus === 'error' ? 'var(--danger)' : 'var(--primary)'),
+            }}>
+              {recognitionText}
             </div>
+            <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginTop: '8px' }}>
+              FACE_COUNT: {recognition?.face_count ?? 0}
+            </div>
+            {errorMessage && <div style={{ color: 'var(--danger)', fontSize: '0.75rem', marginTop: '12px' }}>ERROR: {errorMessage}</div>}
           </div>
 
-          <div className="cyber-card" style={{ flex: 1 }}>
-            <h3 style={{ fontSize: '0.9rem', marginBottom: '16px', color: 'var(--cyan-color)' }}>[ SUBJECT_DATA ]</h3>
+          <div className="card" style={{ flex: 1 }}>
+            <h3 style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '16px' }}>识别结果</h3>
+
             {primary ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>IDENTITY:</div>
-                  <div className="glow-text" style={{ fontSize: '1.4rem' }}>{primary.name} ({primary.user_id})</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>姓名及学号</div>
+                  <div style={{ fontSize: '1.125rem', fontWeight: 600 }}>{primary.name} ({primary.user_id})</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>CONFIDENCE_SCORE:</div>
-                  <div style={{ fontSize: '1rem', color: 'var(--cyan-color)' }}>{primary.confidence?.toFixed(2) ?? 'N/A'} [LBPH]</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>签到时间</div>
+                  <div style={{ fontSize: '0.875rem' }}>{primary.attendance ? `${primary.attendance.date} ${primary.attendance.time}` : 'N/A'}</div>
                 </div>
-                {primary.attendance && (
-                  <div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>TIMESTAMP:</div>
-                    <div style={{ fontSize: '1rem' }}>{primary.attendance.date} {primary.attendance.time}</div>
-                  </div>
-                )}
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>LBPH 置信度</div>
+                  <div style={{ fontSize: '0.875rem', fontWeight: 500 }}>{primary.confidence?.toFixed(2) ?? 'N/A'}</div>
+                </div>
               </div>
             ) : (
-              <div style={{ color: 'var(--text-dark)', display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center' }}>
-                NO_VALID_DATA_IN_BUFFER
+              <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                暂无人员数据
               </div>
             )}
           </div>
