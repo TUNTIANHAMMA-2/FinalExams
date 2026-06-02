@@ -1,31 +1,68 @@
-import React, { useState } from 'react';
-
-const mockRecords = [
-  { id: 1, date: '2026-06-02', time: '08:30:12', userId: '2026001', name: '张三', status: 'SUCCESS' },
-  { id: 2, date: '2026-06-02', time: '08:31:05', userId: '2026002', name: '李四', status: 'SUCCESS' },
-  { id: 3, date: '2026-06-02', time: '08:32:50', userId: '2026001', name: '张三', status: 'DUPLICATE' },
-  { id: 4, date: '2026-06-02', time: '08:45:22', userId: 'UNKNOWN', name: 'UNKNOWN', status: 'FAILED' },
-];
+import React, { useEffect, useState } from 'react';
+import type { AttendanceRecord } from '../api';
+import { fetchRecords } from '../api';
 
 const Records: React.FC = () => {
+  const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [filterName, setFilterName] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
 
-  const filteredRecords = mockRecords.filter(r => r.name.includes(filterName) || r.userId.includes(filterName));
+  const loadRecords = async () => {
+    try {
+      const response = await fetchRecords();
+      setRecords(response.records);
+      setErrorMessage('');
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : '记录加载失败');
+    }
+  };
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadRecords();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  const filteredRecords = records.filter((record) => (
+    record.name.includes(filterName) || record.user_id.includes(filterName)
+  ));
+
+  const exportCsv = () => {
+    const header = 'date,time,user_id,name,status';
+    const rows = filteredRecords.map((record) => [
+      record.date,
+      record.time,
+      record.user_id,
+      record.name,
+      record.status,
+    ].join(','));
+    const blob = new Blob([[header, ...rows].join('\n')], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'attendance_records.csv';
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div>
       <h2 className="glow" style={{ marginBottom: '24px' }}>&gt; /attendance_records</h2>
-      
+
       <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
-        <input 
-          type="text" 
-          placeholder="FILTER BY NAME OR ID..." 
+        <input
+          type="text"
+          placeholder="FILTER BY NAME OR ID..."
           value={filterName}
-          onChange={(e) => setFilterName(e.target.value)}
+          onChange={(event) => setFilterName(event.target.value)}
           style={{ width: '300px' }}
         />
-        <button>EXPORT_CSV</button>
+        <button onClick={loadRecords}>REFRESH</button>
+        <button onClick={exportCsv}>EXPORT_CSV</button>
       </div>
+
+      {errorMessage && <div style={{ marginBottom: '16px', color: 'var(--error-color)' }}>ERROR: {errorMessage}</div>}
 
       <div style={{ border: '1px solid var(--border-color)', backgroundColor: '#050505' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
@@ -39,18 +76,17 @@ const Records: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {filteredRecords.map(record => (
-              <tr key={record.id} style={{ borderBottom: '1px dashed #003b00' }}>
+            {filteredRecords.map((record, index) => (
+              <tr key={`${record.date}-${record.time}-${record.user_id}-${index}`} style={{ borderBottom: '1px dashed #003b00' }}>
                 <td style={{ padding: '12px' }}>{record.date}</td>
                 <td style={{ padding: '12px' }}>{record.time}</td>
-                <td style={{ padding: '12px' }}>{record.userId}</td>
+                <td style={{ padding: '12px' }}>{record.user_id}</td>
                 <td style={{ padding: '12px' }}>{record.name}</td>
-                <td style={{ 
+                <td style={{
                   padding: '12px',
-                  color: record.status === 'SUCCESS' ? 'var(--accent-color)' : 
-                         record.status === 'FAILED' ? 'var(--error-color)' : 'orange'
+                  color: record.status === 'success' ? 'var(--accent-color)' : 'orange',
                 }}>
-                  [{record.status}]
+                  [{record.status.toUpperCase()}]
                 </td>
               </tr>
             ))}

@@ -50,6 +50,35 @@ pip install -r requirements.txt
 
 ## 运行方式
 
+完整交互版需要同时启动 Python API 和 React 前端。
+
+后端 API：
+
+```bash
+python -m app.main serve
+```
+
+默认 API 地址是 `http://127.0.0.1:8765`。
+
+前端页面：
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+打开 Vite 输出的地址，通常是 `http://localhost:5173/`。
+
+交互流程：
+
+1. 进入 `Register` 页面，填写学号和姓名，拍照注册人脸。
+2. 进入 `Live Stream` 页面，点击 `Start`，浏览器会调用摄像头并定时请求 Python API 做人脸识别签到。
+3. 进入 `Records` 页面查看真实签到记录。
+4. 进入 `Analytics` 页面查看真实统计。
+
+命令行演示仍可单独运行：
+
 ```bash
 python -m app.main register --user-id 2026001 --name 张三 --image data/faces/zhangsan.jpg
 python -m app.main run
@@ -68,7 +97,8 @@ python3 -m app.main demo-checkin --user-id 2026001 --name 张三
 
 说明：
 
-- `register` 用于注册用户并重新训练 LBPH 人脸识别模型
+- `serve` 启动浏览器前端调用的本地 API 服务
+- `register` 用于命令行注册用户并重新训练 LBPH 人脸识别模型
 - `run` 启动摄像头签到流程
 - `stats` 输出签到统计结果
 - `demo-checkin` 写入一条演示签到记录，便于在未安装摄像头依赖时验证数据链路

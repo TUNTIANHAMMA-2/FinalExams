@@ -9,3 +9,4 @@ data/exports/*
 !data/exports/.gitkeep
 data/faces/*
 !data/faces/.gitkeep
+!data/encodings/.gitkeep

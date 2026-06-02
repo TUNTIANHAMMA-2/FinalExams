@@ -17,6 +17,10 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("run", help="启动签到流程")
     subparsers.add_parser("stats", help="查看签到统计")
 
+    serve = subparsers.add_parser("serve", help="启动前端交互 API 服务")
+    serve.add_argument("--host", default="127.0.0.1")
+    serve.add_argument("--port", type=int, default=8765)
+
     demo = subparsers.add_parser("demo-checkin", help="写入一条演示签到记录")
     demo.add_argument("--user-id", default="2026001")
     demo.add_argument("--name", default="测试学生")
@@ -42,6 +46,12 @@ def handle_demo_checkin(args) -> None:
     record = attendance.mark_attendance(args.user_id, args.name)
     print("演示签到结果")
     print(record)
+
+
+def handle_serve(args) -> None:
+    from app import api_server
+
+    api_server.run_server(args.host, args.port)
 
 
 def handle_run() -> None:
@@ -101,6 +111,8 @@ def main() -> None:
         handle_run()
     elif args.command == "stats":
         handle_stats()
+    elif args.command == "serve":
+        handle_serve(args)
     elif args.command == "demo-checkin":
         handle_demo_checkin(args)
 

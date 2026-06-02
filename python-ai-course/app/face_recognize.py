@@ -138,6 +138,22 @@ def load_known_faces() -> KnownFaceStore:
     return KnownFaceStore(recognizer=recognizer, faces_by_label=faces_by_label)
 
 
+def list_registered_faces() -> list[dict[str, object]]:
+    """Return registered users and whether their normalized sample exists."""
+    registry = _load_registry()
+    users = []
+    for face in _registered_faces(registry):
+        users.append(
+            {
+                "label": face.label,
+                "user_id": face.user_id,
+                "name": face.name,
+                "sample_exists": Path(face.sample_path).exists(),
+            }
+        )
+    return users
+
+
 def match_faces(gray_frame, face_locations, known_faces: KnownFaceStore, threshold: float):
     if not face_locations:
         return []
