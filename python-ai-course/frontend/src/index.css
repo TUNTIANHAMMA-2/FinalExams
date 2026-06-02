@@ -1,0 +1,104 @@
+:root {
+  --bg-color: #0a0a0a;
+  --text-color: #00ff41;
+  --text-dim: #008f11;
+  --accent-color: #00ff41;
+  --error-color: #ff003c;
+  --border-color: #003b00;
+  --font-mono: 'Fira Code', 'Courier New', Courier, monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-mono);
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+body::before {
+  content: " ";
+  display: block;
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+  z-index: 2;
+  background-size: 100% 2px, 3px 100%;
+  pointer-events: none;
+}
+
+a {
+  color: var(--accent-color);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+button {
+  background-color: transparent;
+  color: var(--text-color);
+  border: 1px solid var(--text-color);
+  padding: 8px 16px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+}
+
+button:hover {
+  background-color: var(--text-color);
+  color: var(--bg-color);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+input {
+  background-color: #111;
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  padding: 8px;
+  font-family: var(--font-mono);
+  outline: none;
+}
+
+input:focus {
+  border-color: var(--text-color);
+  box-shadow: 0 0 5px rgba(0, 255, 65, 0.2);
+}
+
+/* CRT Glow Effect */
+.glow {
+  text-shadow: 0 0 5px rgba(0, 255, 65, 0.5);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-color);
+  border-left: 1px solid var(--border-color);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--text-dim);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-color);
+}
