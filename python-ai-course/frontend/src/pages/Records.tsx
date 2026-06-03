@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Button, Card, Empty, Flex, Input, Space, Table, Tabs, Tag, Typography, type TableColumnsType } from 'antd';
+import { Alert, Button, Card, Empty, Flex, Input, Space, Table, Tabs, Tag, Typography, type TableColumnsType } from 'antd';
 import { Download, RefreshCw, Search } from 'lucide-react';
 import type { AttendanceRecord, RecognitionEvent } from '../api';
 import { fetchEvents, fetchRecords } from '../api';
@@ -24,6 +24,7 @@ const Records: React.FC = () => {
   const [filterName, setFilterName] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [eventApiUnavailable, setEventApiUnavailable] = useState(false);
 
   const loadRecords = async () => {
     try {
@@ -31,6 +32,7 @@ const Records: React.FC = () => {
       const [recordResponse, eventResponse] = await Promise.all([fetchRecords(), fetchEvents()]);
       setRecords(recordResponse.records);
       setEvents(eventResponse.events);
+      setEventApiUnavailable(eventResponse.unavailable ?? false);
       setErrorMessage('');
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : '记录加载失败');
@@ -174,15 +176,25 @@ const Records: React.FC = () => {
               key: 'events',
               label: `识别事件 (${filteredEvents.length})`,
               children: (
-                <Table<RecognitionEvent>
-                  rowKey={(event) => event.event_id}
-                  columns={eventColumns}
-                  dataSource={filteredEvents}
-                  loading={loading}
-                  scroll={{ x: 'max-content' }}
-                  pagination={{ pageSize: 10, showSizeChanger: true, responsive: true, hideOnSinglePage: false }}
-                  locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无识别事件" /> }}
-                />
+                <Space direction="vertical" size={16} style={{ width: '100%' }}>
+                  {eventApiUnavailable && (
+                    <Alert
+                      type="warning"
+                      showIcon
+                      message="当前后端还没有 /api/events 接口"
+                      description="签到记录已正常加载。请重启或更新 Python 后端后，识别事件日志会显示在这里。"
+                    />
+                  )}
+                  <Table<RecognitionEvent>
+                    rowKey={(event) => event.event_id}
+                    columns={eventColumns}
+                    dataSource={filteredEvents}
+                    loading={loading}
+                    scroll={{ x: 'max-content' }}
+                    pagination={{ pageSize: 10, showSizeChanger: true, responsive: true, hideOnSinglePage: false }}
+                    locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无识别事件" /> }}
+                  />
+                </Space>
               ),
             },
           ]}
