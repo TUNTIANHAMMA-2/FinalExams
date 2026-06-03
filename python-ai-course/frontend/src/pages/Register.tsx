@@ -6,6 +6,15 @@ import { registerFace } from '../api';
 type RegisterValues = { userId: string; name: string };
 type SubmitResult = { type: 'success' | 'error'; text: string };
 
+const REQUIRED_SAMPLE_COUNT = 3;
+const SAMPLE_CAPTURE_DELAY_MS = 650;
+
+function wait(ms: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
 const Register: React.FC = () => {
   const { message } = App.useApp();
   const { token } = theme.useToken();
@@ -17,6 +26,7 @@ const Register: React.FC = () => {
   const [cameraOn, setCameraOn] = useState(false);
   const [loading, setLoading] = useState(false);
   const [snapshot, setSnapshot] = useState('');
+  const [sampleProgress, setSampleProgress] = useState(0);
   const [result, setResult] = useState<SubmitResult | null>(null);
 
   /**
@@ -94,7 +104,7 @@ const Register: React.FC = () => {
    * 
    * 包含以下核心步骤：
    * 1. 开启加载状态并重置结果。
-   * 2. 调用 `captureFrame` 采集当前画面。
+   * 2. 连续调用 `captureFrame` 采集 3 张训练样本。
    * 3. 将采集的图像数据与表单中的 userId, name 一并发送给后端 `registerFace` API。
    * 4. 根据请求结果更新 UI 状态 (success/error)。
    * 
@@ -104,9 +114,20 @@ const Register: React.FC = () => {
     try {
       setLoading(true);
       setResult(null);
-      const imageData = captureFrame();
-      setSnapshot(imageData);
-      const response = await registerFace(values.userId, values.name, imageData);
+      setSampleProgress(0);
+
+      const imageDataList: string[] = [];
+      for (let index = 0; index < REQUIRED_SAMPLE_COUNT; index += 1) {
+        if (index > 0) {
+          await wait(SAMPLE_CAPTURE_DELAY_MS);
+        }
+        const imageData = captureFrame();
+        imageDataList.push(imageData);
+        setSnapshot(imageData);
+        setSampleProgress(index + 1);
+      }
+
+      const response = await registerFace(values.userId, values.name, imageDataList);
       setResult({ type: 'success', text: response.message });
       message.success('注册成功');
     } catch (error) {
@@ -115,6 +136,7 @@ const Register: React.FC = () => {
       message.error(text);
     } finally {
       setLoading(false);
+      setSampleProgress(0);
     }
   };
 
@@ -174,7 +196,7 @@ const Register: React.FC = () => {
                       <Camera size={48} strokeWidth={1.5} />
                       <Typography.Text type="secondary">摄像头未开启</Typography.Text>
                       <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                        先点击“启动摄像头”，再采集并注册
+                        先点击“启动摄像头”，再连续采集 3 张训练样本
                       </Typography.Text>
                     </Space>
                   )}
@@ -193,6 +215,11 @@ const Register: React.FC = () => {
                   )}
                 </div>
               </Form.Item>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {loading
+                  ? `正在采集第 ${Math.max(1, sampleProgress)} / ${REQUIRED_SAMPLE_COUNT} 张，请轻微调整角度`
+                  : `本次注册将连续采集 ${REQUIRED_SAMPLE_COUNT} 张样本`}
+              </Typography.Text>
             </Col>
           </Row>
 
@@ -213,7 +240,7 @@ const Register: React.FC = () => {
                 启动摄像头
               </Button>
               <Button type="primary" htmlType="submit" icon={<Camera size={16} />} loading={loading} disabled={!cameraOn}>
-                采集并注册
+                连续采集 3 张并注册
               </Button>
             </div>
           </Form.Item>

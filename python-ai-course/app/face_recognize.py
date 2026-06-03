@@ -14,7 +14,7 @@ class KnownFace:
     label: int
     user_id: str
     name: str
-    sample_path: str
+    sample_paths: list[str]
 
 
 @dataclass
@@ -31,8 +31,12 @@ def _create_recognizer():
     return cv2.face.LBPHFaceRecognizer_create()
 
 
-def _sample_path(user_id: str) -> Path:
-    return config.FACES_DIR / f"{user_id}.png"
+def _sample_dir(user_id: str) -> Path:
+    return config.FACES_DIR / user_id
+
+
+def _sample_path(user_id: str, index: int = 1) -> Path:
+    return _sample_dir(user_id) / f"sample_{index:03d}.png"
 
 
 def _load_registry() -> dict:
@@ -61,12 +65,16 @@ def _load_gray_image(image_path: str):
 def _registered_faces(registry: dict) -> list[KnownFace]:
     faces = []
     for payload in registry["users"].values():
+        sample_paths = payload.get("sample_paths")
+        if not isinstance(sample_paths, list):
+            sample_path = payload.get("sample_path", "")
+            sample_paths = [sample_path] if sample_path else []
         faces.append(
             KnownFace(
                 label=int(payload["label"]),
                 user_id=payload["user_id"],
                 name=payload["name"],
-                sample_path=payload["sample_path"],
+                sample_paths=[str(path) for path in sample_paths],
             )
         )
     return faces
@@ -79,14 +87,15 @@ def rebuild_model() -> None:
     labels = []
 
     for face in faces:
-        sample_path = Path(face.sample_path)
-        if not sample_path.exists():
-            continue
-        sample = cv2.imread(str(sample_path), cv2.IMREAD_GRAYSCALE)
-        if sample is None:
-            continue
-        samples.append(sample)
-        labels.append(face.label)
+        for sample_path_value in face.sample_paths:
+            sample_path = Path(sample_path_value)
+            if not sample_path.exists():
+                continue
+            sample = cv2.imread(str(sample_path), cv2.IMREAD_GRAYSCALE)
+            if sample is None:
+                continue
+            samples.append(sample)
+            labels.append(face.label)
 
     if not samples:
         return
@@ -98,16 +107,22 @@ def rebuild_model() -> None:
 
 
 def register_face(user_id: str, name: str, image_path: str) -> None:
-    storage.ensure_data_dirs()
-    gray = _load_gray_image(image_path)
-    face_locations = face_detect.locate_faces(gray)
-    face_location = face_detect.largest_face(face_locations)
-    if face_location is None:
-        raise ValueError("未在图片中检测到可用人脸")
+    register_face_samples(user_id, name, [image_path])
 
-    normalized = _normalize_face(gray, face_location)
-    sample_path = _sample_path(user_id)
-    cv2.imwrite(str(sample_path), normalized)
+
+def register_face_samples(user_id: str, name: str, image_paths: list[str]) -> None:
+    storage.ensure_data_dirs()
+    if not image_paths:
+        raise ValueError("至少需要 1 张人脸样本")
+
+    normalized_faces = []
+    for index, image_path in enumerate(image_paths, start=1):
+        gray = _load_gray_image(image_path)
+        face_locations = face_detect.locate_faces(gray)
+        face_location = face_detect.largest_face(face_locations)
+        if face_location is None:
+            raise ValueError(f"第 {index} 张图片未检测到可用人脸")
+        normalized_faces.append(_normalize_face(gray, face_location))
 
     registry = _load_registry()
     existing = registry["users"].get(user_id)
@@ -115,11 +130,20 @@ def register_face(user_id: str, name: str, image_path: str) -> None:
     if existing is None:
         registry["next_label"] = label + 1
 
+    sample_dir = _sample_dir(user_id)
+    sample_dir.mkdir(parents=True, exist_ok=True)
+    sample_paths = []
+    for index, normalized in enumerate(normalized_faces, start=1):
+        sample_path = _sample_path(user_id, index)
+        if not cv2.imwrite(str(sample_path), normalized):
+            raise ValueError(f"第 {index} 张人脸样本保存失败")
+        sample_paths.append(str(sample_path))
+
     registry["users"][user_id] = {
         "label": label,
         "user_id": user_id,
         "name": name,
-        "sample_path": str(sample_path),
+        "sample_paths": sample_paths,
     }
     _save_registry(registry)
     rebuild_model()
@@ -148,7 +172,8 @@ def list_registered_faces() -> list[dict[str, object]]:
                 "label": face.label,
                 "user_id": face.user_id,
                 "name": face.name,
-                "sample_exists": Path(face.sample_path).exists(),
+                "sample_exists": any(Path(sample_path).exists() for sample_path in face.sample_paths),
+                "sample_count": sum(1 for sample_path in face.sample_paths if Path(sample_path).exists()),
             }
         )
     return users

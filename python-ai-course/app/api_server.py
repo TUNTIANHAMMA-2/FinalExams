@@ -50,20 +50,29 @@ def register_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Register a face from JSON payload sent by the browser."""
     user_id = str(payload.get("user_id", "")).strip()
     name = str(payload.get("name", "")).strip()
-    image_data = str(payload.get("image_data", "")).strip()
+    raw_image_list = payload.get("image_data_list")
+    if isinstance(raw_image_list, list):
+        image_data_list = [str(item).strip() for item in raw_image_list if str(item).strip()]
+    else:
+        image_data = str(payload.get("image_data", "")).strip()
+        image_data_list = [image_data] if image_data else []
 
-    if not user_id or not name or not image_data:
-        raise ValueError("user_id、name 和 image_data 都不能为空")
+    if not user_id or not name or not image_data_list:
+        raise ValueError("user_id、name 和 image_data_list 都不能为空")
 
     from app import face_recognize
 
-    source_path = config.FACES_DIR / f"{user_id}_source.jpg"
-    _write_image_data(image_data, source_path)
-    face_recognize.register_face(user_id, name, str(source_path))
+    source_paths = []
+    for index, image_data in enumerate(image_data_list, start=1):
+        source_path = config.FACES_DIR / f"{user_id}_source_{index:03d}.jpg"
+        _write_image_data(image_data, source_path)
+        source_paths.append(str(source_path))
+    face_recognize.register_face_samples(user_id, name, source_paths)
     return {
         "status": "success",
         "user": {"user_id": user_id, "name": name},
-        "message": "人脸注册成功，LBPH 模型已重新训练",
+        "sample_count": len(source_paths),
+        "message": f"人脸注册成功，已使用 {len(source_paths)} 张样本重新训练 LBPH 模型",
     }
 
 

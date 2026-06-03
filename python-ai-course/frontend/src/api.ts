@@ -175,10 +175,11 @@ function normalizeStats(payload: Partial<StatsResponse> | null | undefined): Sta
   };
 }
 
-export function registerFace(userId: string, name: string, imageData: string) {
-  return requestJson<{ status: string; message: string }>("/api/register", {
+export function registerFace(userId: string, name: string, imageData: string | string[]) {
+  const imageDataList = Array.isArray(imageData) ? imageData : [imageData];
+  return requestJson<{ status: string; message: string; sample_count?: number }>("/api/register", {
     method: 'POST',
-    body: JSON.stringify({ user_id: userId, name, image_data: imageData }),
+    body: JSON.stringify({ user_id: userId, name, image_data_list: imageDataList }),
   });
 }
 
