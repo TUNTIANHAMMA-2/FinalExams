@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Button, Card, Empty, Flex, Input, Space, Table, Tabs, Tag, Typography, type TableColumnsType } from 'antd';
 import { Download, RefreshCw, Search } from 'lucide-react';
 import type { AttendanceRecord, RecognitionEvent } from '../api';
-import { fetchEvents, fetchRecords } from '../api';
+import { exportAttendanceCsv, exportEventsCsv, fetchEvents, fetchRecords } from '../api';
 
 function statusTag(status: string) {
   if (status === 'success') return <Tag color="success">签到成功</Tag>;
@@ -13,16 +13,12 @@ function statusTag(status: string) {
   return <Tag color="default">{status}</Tag>;
 }
 
-function escapeCsv(value?: string) {
-  const text = value ?? '';
-  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-}
-
 const Records: React.FC = () => {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [events, setEvents] = useState<RecognitionEvent[]>([]);
   const [filterName, setFilterName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [eventApiUnavailable, setEventApiUnavailable] = useState(false);
 
@@ -58,20 +54,20 @@ const Records: React.FC = () => {
     [events, filterName],
   );
 
-  const exportCsv = () => {
-    const header = 'date,time,user_id,name,status,confidence,event_id';
-    const rows = filteredRecords.map((record) =>
-      [record.date, record.time, record.user_id, record.name, record.status, record.confidence, record.event_id]
-        .map(escapeCsv)
-        .join(','),
-    );
-    const blob = new Blob([[header, ...rows].join('\n')], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = 'attendance_records.csv';
-    anchor.click();
-    URL.revokeObjectURL(url);
+  const handleExport = async (type: 'attendance' | 'events') => {
+    try {
+      setExporting(true);
+      if (type === 'attendance') {
+        await exportAttendanceCsv();
+      } else {
+        await exportEventsCsv();
+      }
+      setErrorMessage('');
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'CSV 导出失败');
+    } finally {
+      setExporting(false);
+    }
   };
 
   const columns: TableColumnsType<AttendanceRecord> = [
@@ -144,8 +140,11 @@ const Records: React.FC = () => {
           <Button icon={<RefreshCw size={16} />} onClick={loadRecords} loading={loading}>
             刷新
           </Button>
-          <Button icon={<Download size={16} />} onClick={exportCsv}>
-            导出为 CSV
+          <Button icon={<Download size={16} />} onClick={() => void handleExport('attendance')} loading={exporting}>
+            导出签到 CSV
+          </Button>
+          <Button icon={<Download size={16} />} onClick={() => void handleExport('events')} loading={exporting}>
+            导出事件 CSV
           </Button>
         </Space>
       </Flex>

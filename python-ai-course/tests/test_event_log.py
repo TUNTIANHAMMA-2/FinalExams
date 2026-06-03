@@ -13,15 +13,21 @@ class EventLogTest(unittest.TestCase):
         self.original_attendance = config.ATTENDANCE_FILE
         self.original_event_log = config.EVENT_LOG_FILE
         self.original_labels = config.LABELS_FILE
+        self.original_database = config.DATABASE_FILE
+        self.original_exports = config.EXPORTS_DIR
         root = Path(self.temp_dir.name)
         config.ATTENDANCE_FILE = root / "attendance.csv"
         config.EVENT_LOG_FILE = root / "event_log.csv"
         config.LABELS_FILE = root / "labels.json"
+        config.DATABASE_FILE = root / "attendance.db"
+        config.EXPORTS_DIR = root / "exports"
 
     def tearDown(self) -> None:
         config.ATTENDANCE_FILE = self.original_attendance
         config.EVENT_LOG_FILE = self.original_event_log
         config.LABELS_FILE = self.original_labels
+        config.DATABASE_FILE = self.original_database
+        config.EXPORTS_DIR = self.original_exports
         self.temp_dir.cleanup()
 
     def test_event_log_is_included_in_summary(self) -> None:
@@ -111,11 +117,34 @@ class EventLogTest(unittest.TestCase):
         )
 
         rows = storage.read_attendance()
+        rows_by_user = {row["user_id"]: row for row in rows}
 
-        self.assertEqual(rows[0]["confidence"], "")
-        self.assertEqual(rows[0]["event_id"], "")
-        self.assertEqual(rows[1]["confidence"], "21.5")
-        self.assertEqual(rows[1]["event_id"], "evt-2")
+        self.assertEqual(rows_by_user["2026001"]["confidence"], "")
+        self.assertEqual(rows_by_user["2026001"]["event_id"], "")
+        self.assertEqual(rows_by_user["2026002"]["confidence"], "21.5")
+        self.assertEqual(rows_by_user["2026002"]["event_id"], "evt-2")
+
+    def test_export_csv_writes_sqlite_rows(self) -> None:
+        storage.append_attendance(
+            {
+                "date": "2026-06-03",
+                "time": "10:00:00",
+                "user_id": "2026001",
+                "name": "Test User",
+                "status": "success",
+                "confidence": "12.3",
+                "event_id": "evt-1",
+            }
+        )
+        events.append_event("success", user_id="2026001", name="Test User", event_id="evt-1")
+
+        attendance_path = storage.export_attendance_csv()
+        events_path = storage.export_events_csv()
+
+        self.assertTrue(attendance_path.exists())
+        self.assertTrue(events_path.exists())
+        self.assertIn("Test User", attendance_path.read_text(encoding="utf-8-sig"))
+        self.assertIn("success", events_path.read_text(encoding="utf-8-sig"))
 
 
 if __name__ == "__main__":

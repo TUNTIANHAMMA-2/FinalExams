@@ -4,6 +4,8 @@ __pycache__/
 venv/
 data/attendance.csv
 data/event_log.csv
+data/attendance.db
+data/attendance.db-*
 data/encodings/*.json
 data/encodings/*.yml
 data/exports/*

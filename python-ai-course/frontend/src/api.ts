@@ -126,6 +126,25 @@ async function requestJson<T>(path: string, options: RequestInit = {}): Promise<
   return payload as T;
 }
 
+async function downloadCsv(path: string, filename: string) {
+  const response = await fetch(`${API_BASE_URL}${path}`);
+  if (!response.ok) {
+    const payload: unknown = await response.json().catch(() => null);
+    const message = isJsonObject(payload) && typeof payload.message === 'string'
+      ? payload.message
+      : `CSV export failed: ${response.status}`;
+    throw new ApiError(message, response.status);
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
 function normalizeRecognitionEvent(value: unknown, index: number): RecognitionEvent {
   const event = isJsonObject(value) ? value : {};
   const timestamp = toStringValue(event.timestamp);
@@ -196,4 +215,12 @@ export async function fetchStats() {
 
 export function fetchUsers() {
   return requestJson<{ users: RegisteredUser[] }>("/api/users");
+}
+
+export function exportAttendanceCsv() {
+  return downloadCsv("/api/export/attendance", "attendance_records.csv");
+}
+
+export function exportEventsCsv() {
+  return downloadCsv("/api/export/events", "recognition_events.csv");
 }

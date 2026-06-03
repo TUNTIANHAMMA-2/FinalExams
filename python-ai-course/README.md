@@ -32,19 +32,20 @@ data/
   faces/
   encodings/
   exports/
-  attendance.csv
-  event_log.csv
+  attendance.db
 docs/
 ```
 
 ## 数据表设计
 
-项目使用 CSV 作为轻量级本地数据存储，便于答辩展示底层业务逻辑。
+项目使用 SQLite 作为轻量级本地数据库，不依赖外部数据库服务，同时支持索引、事务和更快的查询统计。CSV 保留为导出格式，便于提交材料或答辩时直接查看数据。
 
-- `data/attendance.csv` 是签到结果表，只保存真正生效的签到记录；同一用户同一天重复识别时不会追加新签到行。
-- `data/event_log.csv` 是识别事件表，保存 `success`、`duplicate`、`recognized`、`unknown`、`no_model` 等识别过程事件，用于分析识别成功率、重复打卡次数和异常原因。
+- `data/attendance.db` 是主数据库文件。
+- `attendance` 表是签到结果表，只保存真正生效的签到记录；同一用户同一天重复识别时不会追加新签到行。
+- `event_log` 表是识别事件表，保存 `success`、`duplicate`、`recognized`、`unknown`、`no_model` 等识别过程事件，用于分析识别成功率、重复打卡次数和异常原因。
 - `no_face` 表示摄像头画面中没有检测到人脸，是正常空帧状态，不写入事件日志，避免长时间运行时产生大量无意义日志。
 - `event_id` 用于关联一次成功写入的签到结果与对应识别事件，便于从业务结果反查识别过程。
+- `data/exports/attendance_records.csv` 和 `data/exports/recognition_events.csv` 是从 SQLite 导出的 CSV 文件，不作为主存储。
 
 ## 安装依赖
 

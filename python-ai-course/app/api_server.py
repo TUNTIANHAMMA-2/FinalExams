@@ -175,6 +175,18 @@ class ApiRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _send_csv_file(self, path: Path, filename: str) -> None:
+        body = path.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/csv; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
+        self.wfile.write(body)
+
     def _read_json(self) -> dict[str, Any]:
         content_length = int(self.headers.get("Content-Length", "0"))
         if content_length <= 0:
@@ -196,6 +208,10 @@ class ApiRequestHandler(BaseHTTPRequestHandler):
                 self._send_json(200, {"records": storage.read_attendance()})
             elif path == "/api/events":
                 self._send_json(200, {"events": storage.read_events()})
+            elif path == "/api/export/attendance":
+                self._send_csv_file(storage.export_attendance_csv(), "attendance_records.csv")
+            elif path == "/api/export/events":
+                self._send_csv_file(storage.export_events_csv(), "recognition_events.csv")
             elif path == "/api/stats":
                 self._send_json(200, analytics.summarize_attendance())
             elif path == "/api/users":
