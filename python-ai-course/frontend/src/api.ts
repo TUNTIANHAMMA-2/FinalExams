@@ -97,6 +97,7 @@ export type RecognitionResponse = {
 export type StatsResponse = {
   total_records: number;
   status_counts: Record<string, number>;
+  valid_status_counts: Record<string, number>;
   event_total: number;
   event_counts: Record<string, number>;
   user_counts: Record<string, number>;
@@ -145,6 +146,7 @@ function normalizeStats(payload: Partial<StatsResponse> | null | undefined): Sta
   return {
     total_records: toNumber(payload?.total_records),
     status_counts: numberMap(payload?.status_counts),
+    valid_status_counts: numberMap(payload?.valid_status_counts),
     event_total: toNumber(payload?.event_total),
     event_counts: numberMap(payload?.event_counts),
     user_counts: numberMap(payload?.user_counts),

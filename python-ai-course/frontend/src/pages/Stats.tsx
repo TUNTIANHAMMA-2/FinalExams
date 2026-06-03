@@ -7,6 +7,7 @@ import { fetchStats } from '../api';
 const emptyStats: StatsResponse = {
   total_records: 0,
   status_counts: {},
+  valid_status_counts: {},
   event_total: 0,
   event_counts: {},
   user_counts: {},
@@ -41,7 +42,7 @@ const Stats: React.FC = () => {
     return () => window.clearTimeout(timer);
   }, []);
 
-  const successCount = stats.status_counts.success ?? 0;
+  const successCount = stats.valid_status_counts.success ?? stats.status_counts.success ?? 0;
   const duplicateCount = stats.event_counts.duplicate ?? 0;
   const recognizedCount = stats.event_counts.recognized ?? 0;
   const unknownCount = stats.event_counts.unknown ?? 0;
