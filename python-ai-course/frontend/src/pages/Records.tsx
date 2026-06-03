@@ -1,20 +1,31 @@
-import React, { useEffect, useState } from 'react';
-import { Download, Inbox, RefreshCw, Search } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Button, Card, Empty, Flex, Input, Space, Table, Tag, Typography, type TableColumnsType } from 'antd';
+import { Download, RefreshCw, Search } from 'lucide-react';
 import type { AttendanceRecord } from '../api';
 import { fetchRecords } from '../api';
+
+function statusTag(status: string) {
+  if (status === 'success') return <Tag color="success">签到成功</Tag>;
+  if (status === 'duplicate') return <Tag color="warning">重复签到</Tag>;
+  return <Tag color="error">{status}</Tag>;
+}
 
 const Records: React.FC = () => {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [filterName, setFilterName] = useState('');
+  const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
   const loadRecords = async () => {
     try {
+      setLoading(true);
       const response = await fetchRecords();
       setRecords(response.records);
       setErrorMessage('');
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : '记录加载失败');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -25,13 +36,16 @@ const Records: React.FC = () => {
     return () => window.clearTimeout(timer);
   }, []);
 
-  const filteredRecords = records.filter((record) => (
-    record.name.includes(filterName) || record.user_id.includes(filterName)
-  ));
+  const filteredRecords = useMemo(
+    () => records.filter((record) => record.name.includes(filterName) || record.user_id.includes(filterName)),
+    [records, filterName],
+  );
 
   const exportCsv = () => {
     const header = 'date,time,user_id,name,status';
-    const rows = filteredRecords.map((record) => [record.date, record.time, record.user_id, record.name, record.status].join(','));
+    const rows = filteredRecords.map((record) =>
+      [record.date, record.time, record.user_id, record.name, record.status].join(','),
+    );
     const blob = new Blob([[header, ...rows].join('\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
@@ -41,74 +55,80 @@ const Records: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  const columns: TableColumnsType<AttendanceRecord> = [
+    {
+      title: '日期',
+      dataIndex: 'date',
+      key: 'date',
+      sorter: (a, b) => a.date.localeCompare(b.date),
+      defaultSortOrder: 'descend',
+    },
+    { title: '时间', dataIndex: 'time', key: 'time', sorter: (a, b) => a.time.localeCompare(b.time) },
+    { title: '学号', dataIndex: 'user_id', key: 'user_id' },
+    {
+      title: '姓名',
+      dataIndex: 'name',
+      key: 'name',
+      render: (value: string) => <Typography.Text strong>{value}</Typography.Text>,
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+      render: (value: string) => statusTag(value),
+      filters: [
+        { text: '签到成功', value: 'success' },
+        { text: '重复签到', value: 'duplicate' },
+        { text: '未识别', value: 'unknown' },
+      ],
+      onFilter: (value, record) => record.status === value,
+    },
+  ];
+
   return (
-    <div>
-      <div style={{ marginBottom: '32px' }}>
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 600, margin: '0 0 8px 0' }}>签到记录</h2>
-        <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.875rem' }}>查询与导出历史签到日志数据</p>
+    <Space direction="vertical" size={24} style={{ width: '100%' }}>
+      <div>
+        <Typography.Title level={3} style={{ margin: 0 }}>
+          签到记录
+        </Typography.Title>
+        <Typography.Text type="secondary">查询与导出历史签到日志数据</Typography.Text>
       </div>
 
-      <div style={{ display: 'flex', gap: '16px', marginBottom: '24px', alignItems: 'center' }}>
-        <div style={{ position: 'relative', width: '320px' }}>
-          <Search size={18} style={{ position: 'absolute', left: '12px', top: '10px', color: 'var(--text-muted)' }} />
-          <input
-            className="input-field"
-            type="text"
-            placeholder="搜索姓名或学号..."
-            value={filterName}
-            onChange={(event) => setFilterName(event.target.value)}
-            style={{ paddingLeft: '38px' }}
-          />
-        </div>
-        <button className="btn btn-outline" onClick={loadRecords}>
-          <RefreshCw size={16} /> 刷新
-        </button>
-        <button className="btn btn-outline" onClick={exportCsv} style={{ marginLeft: 'auto' }}>
-          <Download size={16} /> 导出为 CSV
-        </button>
-      </div>
+      <Flex gap={16} wrap align="center" justify="space-between">
+        <Input
+          allowClear
+          placeholder="搜索姓名或学号..."
+          prefix={<Search size={16} />}
+          value={filterName}
+          onChange={(event) => setFilterName(event.target.value)}
+          style={{ flex: '1 1 240px', maxWidth: 360 }}
+        />
+        <Space wrap>
+          <Button icon={<RefreshCw size={16} />} onClick={loadRecords} loading={loading}>
+            刷新
+          </Button>
+          <Button icon={<Download size={16} />} onClick={exportCsv}>
+            导出为 CSV
+          </Button>
+        </Space>
+      </Flex>
 
-      {errorMessage && <div style={{ marginBottom: '16px', color: 'var(--danger)' }}>ERROR: {errorMessage}</div>}
+      {errorMessage && (
+        <Typography.Text type="danger">ERROR: {errorMessage}</Typography.Text>
+      )}
 
-      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
-          <thead style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid var(--border)' }}>
-            <tr>
-              <th style={{ padding: '16px 24px', fontWeight: 500, color: 'var(--text-muted)' }}>日期</th>
-              <th style={{ padding: '16px 24px', fontWeight: 500, color: 'var(--text-muted)' }}>时间</th>
-              <th style={{ padding: '16px 24px', fontWeight: 500, color: 'var(--text-muted)' }}>学号</th>
-              <th style={{ padding: '16px 24px', fontWeight: 500, color: 'var(--text-muted)' }}>姓名</th>
-              <th style={{ padding: '16px 24px', fontWeight: 500, color: 'var(--text-muted)' }}>状态</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredRecords.map((record, index) => (
-              <tr key={`${record.date}-${record.time}-${record.user_id}-${index}`} style={{ borderBottom: '1px solid var(--border)' }}>
-                <td style={{ padding: '16px 24px' }}>{record.date}</td>
-                <td style={{ padding: '16px 24px' }}>{record.time}</td>
-                <td style={{ padding: '16px 24px' }}>{record.user_id}</td>
-                <td style={{ padding: '16px 24px', fontWeight: 500 }}>{record.name}</td>
-                <td style={{ padding: '16px 24px' }}>
-                  {record.status === 'success' && <span className="badge badge-success">签到成功</span>}
-                  {record.status === 'duplicate' && <span className="badge badge-warning">重复签到</span>}
-                  {record.status !== 'success' && record.status !== 'duplicate' && <span className="badge badge-danger">{record.status}</span>}
-                </td>
-              </tr>
-            ))}
-            {filteredRecords.length === 0 && (
-              <tr>
-                <td colSpan={5} style={{ padding: '48px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-                    <Inbox size={40} strokeWidth={1} />
-                    <p style={{ margin: 0 }}>没有找到匹配的记录</p>
-                  </div>
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
+      <Card styles={{ body: { padding: 0 } }}>
+        <Table<AttendanceRecord>
+          rowKey={(record, index) => `${record.date}-${record.time}-${record.user_id}-${index}`}
+          columns={columns}
+          dataSource={filteredRecords}
+          loading={loading}
+          scroll={{ x: 'max-content' }}
+          pagination={{ pageSize: 10, showSizeChanger: true, responsive: true, hideOnSinglePage: false }}
+          locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="没有找到匹配的记录" /> }}
+        />
+      </Card>
+    </Space>
   );
 };
 

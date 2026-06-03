@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, RefreshCw, TrendingUp, Users, UserX } from 'lucide-react';
+import { Button, Card, Col, Empty, Flex, Progress, Row, Space, Statistic, Typography, theme } from 'antd';
+import { AlertTriangle, RefreshCw, UserX, Users } from 'lucide-react';
 import type { StatsResponse } from '../api';
 import { fetchStats } from '../api';
 
@@ -10,16 +11,21 @@ const emptyStats: StatsResponse = {
 };
 
 const Stats: React.FC = () => {
+  const { token } = theme.useToken();
   const [stats, setStats] = useState<StatsResponse>(emptyStats);
+  const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
   const loadStats = async () => {
     try {
+      setLoading(true);
       const response = await fetchStats();
       setStats(response);
       setErrorMessage('');
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : '统计加载失败');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -36,82 +42,101 @@ const Stats: React.FC = () => {
   const userEntries = Object.entries(stats.user_counts);
   const maxUserCount = Math.max(1, ...userEntries.map(([, value]) => value));
 
+  const cards = [
+    {
+      label: '今日签到人数',
+      value: successCount,
+      icon: <Users size={20} />,
+      color: token.colorSuccess,
+      bg: token.colorSuccessBg,
+      note: '来自 data/attendance.csv',
+    },
+    {
+      label: '拦截重复签到',
+      value: duplicateCount,
+      icon: <UserX size={20} />,
+      color: token.colorWarning,
+      bg: token.colorWarningBg,
+      note: '自动忽略重复打卡请求',
+    },
+    {
+      label: '未识别异常',
+      value: unknownCount,
+      icon: <AlertTriangle size={20} />,
+      color: token.colorError,
+      bg: token.colorErrorBg,
+      note: '记录为陌生人或质量差图像',
+    },
+  ];
+
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+    <Space direction="vertical" size={24} style={{ width: '100%' }}>
+      <Flex justify="space-between" align="center" wrap gap={16}>
         <div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 600, margin: '0 0 8px 0' }}>数据分析</h2>
-          <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.875rem' }}>系统使用情况与出勤率统计</p>
+          <Typography.Title level={3} style={{ margin: 0 }}>
+            数据分析
+          </Typography.Title>
+          <Typography.Text type="secondary">系统使用情况与出勤率统计</Typography.Text>
         </div>
-        <button className="btn btn-outline" onClick={loadStats}>
-          <RefreshCw size={16} /> 刷新
-        </button>
-      </div>
+        <Button icon={<RefreshCw size={16} />} onClick={loadStats} loading={loading}>
+          刷新
+        </Button>
+      </Flex>
 
-      {errorMessage && <div style={{ marginBottom: '16px', color: 'var(--danger)' }}>ERROR: {errorMessage}</div>}
+      {errorMessage && <Typography.Text type="danger">ERROR: {errorMessage}</Typography.Text>}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px', marginBottom: '32px' }}>
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-muted)' }}>今日签到人数</span>
-            <div style={{ padding: '8px', backgroundColor: '#eff6ff', borderRadius: '8px', color: 'var(--primary)' }}>
-              <Users size={20} />
-            </div>
-          </div>
-          <div style={{ fontSize: '2.5rem', fontWeight: 700 }}>{successCount}</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem' }}>
-            <span style={{ color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 500 }}>
-              <TrendingUp size={14} /> 真实记录
-            </span>
-            <span style={{ color: 'var(--text-muted)' }}>来自 data/attendance.csv</span>
-          </div>
-        </div>
+      <Row gutter={[24, 24]}>
+        {cards.map((card) => (
+          <Col key={card.label} xs={24} sm={12} xl={8}>
+            <Card>
+              <Flex vertical gap={8}>
+                <Flex justify="space-between" align="center">
+                  <Typography.Text type="secondary" style={{ fontWeight: 500 }}>
+                    {card.label}
+                  </Typography.Text>
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      padding: 8,
+                      borderRadius: 8,
+                      background: card.bg,
+                      color: card.color,
+                    }}
+                  >
+                    {card.icon}
+                  </span>
+                </Flex>
+                <Statistic value={card.value} valueStyle={{ fontSize: 34, fontWeight: 700, lineHeight: 1.2 }} />
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  {card.note}
+                </Typography.Text>
+              </Flex>
+            </Card>
+          </Col>
+        ))}
+      </Row>
 
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-muted)' }}>拦截重复签到</span>
-            <div style={{ padding: '8px', backgroundColor: 'var(--warning-bg)', borderRadius: '8px', color: '#b45309' }}>
-              <UserX size={20} />
-            </div>
-          </div>
-          <div style={{ fontSize: '2.5rem', fontWeight: 700 }}>{duplicateCount}</div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>自动忽略重复打卡请求</div>
-        </div>
-
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-muted)' }}>未识别异常</span>
-            <div style={{ padding: '8px', backgroundColor: 'var(--danger-bg)', borderRadius: '8px', color: '#b91c1c' }}>
-              <AlertTriangle size={20} />
-            </div>
-          </div>
-          <div style={{ fontSize: '2.5rem', fontWeight: 700 }}>{unknownCount}</div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>记录为陌生人或质量差图像</div>
-        </div>
-      </div>
-
-      <div className="card">
-        <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '24px' }}>用户签到次数</h3>
+      <Card title="用户签到次数">
         {userEntries.length === 0 ? (
-          <div style={{ color: 'var(--text-muted)' }}>暂无成功签到记录</div>
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无成功签到记录" />
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <Space direction="vertical" size={14} style={{ width: '100%' }}>
             {userEntries.map(([name, count]) => (
               <div key={name}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '0.875rem' }}>
-                  <span>{name}</span>
-                  <span>{count}</span>
-                </div>
-                <div style={{ height: '18px', backgroundColor: '#f1f5f9', borderRadius: '999px', overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${(count / maxUserCount) * 100}%`, backgroundColor: 'var(--primary)' }} />
-                </div>
+                <Flex justify="space-between" style={{ marginBottom: 4 }}>
+                  <Typography.Text>{name}</Typography.Text>
+                  <Typography.Text strong>{count}</Typography.Text>
+                </Flex>
+                <Progress percent={Math.round((count / maxUserCount) * 100)} showInfo={false} />
               </div>
             ))}
-          </div>
+          </Space>
         )}
-        <div style={{ marginTop: '20px', color: 'var(--text-muted)', fontSize: '0.75rem' }}>TOTAL_RECORDS: {stats.total_records}</div>
-      </div>
-    </div>
+        <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 20 }}>
+          TOTAL_RECORDS: {stats.total_records}
+        </Typography.Text>
+      </Card>
+    </Space>
   );
 };
 

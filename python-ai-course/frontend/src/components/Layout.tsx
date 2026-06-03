@@ -1,123 +1,176 @@
-import React from 'react';
-import { Outlet, NavLink, useLocation } from 'react-router-dom';
-import { Users, Camera, Activity, Database, Fingerprint } from 'lucide-react';
+import React, { useState } from 'react';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import {
+  Avatar,
+  Button,
+  Drawer,
+  Grid,
+  Layout as AntLayout,
+  Menu,
+  Typography,
+  theme,
+  type MenuProps,
+} from 'antd';
+import {
+  Activity,
+  Camera,
+  Database,
+  Fingerprint,
+  Menu as MenuIcon,
+  Moon,
+  Sun,
+  Users,
+} from 'lucide-react';
+import { useThemeMode } from '../theme/themeContext';
+
+const { Header, Sider, Content } = AntLayout;
+const { useBreakpoint } = Grid;
+
+type NavItem = { key: string; label: string; icon: React.ReactNode };
+
+const NAV: NavItem[] = [
+  { key: '/live', label: '实时签到 (Live)', icon: <Camera size={18} /> },
+  { key: '/register', label: '人脸注册 (Register)', icon: <Users size={18} /> },
+  { key: '/records', label: '签到记录 (Records)', icon: <Database size={18} /> },
+  { key: '/stats', label: '数据分析 (Analytics)', icon: <Activity size={18} /> },
+];
 
 const Layout: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { mode, toggle } = useThemeMode();
+  const { token } = theme.useToken();
+  const screens = useBreakpoint();
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const navItems = [
-    { path: '/live', label: '实时签到 (Live)', icon: <Camera size={20} /> },
-    { path: '/register', label: '人脸注册 (Register)', icon: <Users size={20} /> },
-    { path: '/records', label: '签到记录 (Records)', icon: <Database size={20} /> },
-    { path: '/stats', label: '数据分析 (Analytics)', icon: <Activity size={20} /> },
-  ];
+  const isDesktop = !!screens.lg;
+  const current = NAV.find((item) => location.pathname.startsWith(item.key));
+  const selectedKey = current ? current.key : '/live';
+
+  const handleSelect: MenuProps['onClick'] = ({ key }) => {
+    navigate(key);
+    setDrawerOpen(false);
+  };
+
+  const menu = (
+    <Menu
+      mode="inline"
+      selectedKeys={[selectedKey]}
+      onClick={handleSelect}
+      items={NAV as MenuProps['items']}
+      style={{ background: 'transparent', borderInlineEnd: 'none' }}
+    />
+  );
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', flexDirection: 'column', backgroundColor: 'var(--bg-color)' }}>
-      {/* Header */}
-      <header style={{ 
-        backgroundColor: 'var(--surface)', 
-        borderBottom: '1px solid var(--border)', 
-        padding: '16px 24px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        position: 'sticky',
-        top: 0,
-        zIndex: 10
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ 
-            backgroundColor: 'var(--primary)', 
-            color: 'white', 
-            padding: '8px', 
-            borderRadius: '8px',
-            display: 'flex',
-            alignItems: 'center'
-          }}>
-            <Fingerprint size={24} />
-          </div>
-          <div>
-            <h1 style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0, color: 'var(--text-main)' }}>
-              智能人脸签到系统
-            </h1>
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>
-              Face Recognition Attendance System
-            </p>
-          </div>
-        </div>
-        
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '0.875rem', fontWeight: 500 }}>Admin User</div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>System Administrator</div>
-          </div>
-          <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: 'var(--text-muted)' }}>
-            A
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <div style={{ display: 'flex', flex: 1, maxWidth: '1440px', margin: '0 auto', width: '100%' }}>
-        {/* Sidebar */}
-        <aside style={{ 
-          width: '260px', 
-          backgroundColor: 'var(--bg-color)',
-          padding: '32px 24px',
+    <AntLayout style={{ minHeight: '100vh' }}>
+      <Header
+        style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 100,
           display: 'flex',
-          flexDirection: 'column',
-          gap: '8px'
-        }}>
-          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.05em' }}>
-            Menu
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingInline: 'clamp(16px, 3vw, 32px)',
+          height: 64,
+          background: token.colorBgContainer,
+          borderBottom: `1px solid ${token.colorBorderSecondary}`,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+          {!isDesktop && (
+            <Button
+              type="text"
+              aria-label="打开菜单"
+              icon={<MenuIcon size={20} />}
+              onClick={() => setDrawerOpen(true)}
+            />
+          )}
+          <div
+            style={{
+              background: token.colorPrimary,
+              color: '#fff',
+              width: 36,
+              height: 36,
+              borderRadius: 8,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <Fingerprint size={20} />
           </div>
-          <nav style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            {navItems.map((item) => {
-              const isActive = location.pathname.startsWith(item.path);
-              return (
-                <NavLink 
-                  key={item.path} 
-                  to={item.path}
-                  style={{
-                    padding: '10px 16px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '12px',
-                    borderRadius: '6px',
-                    color: isActive ? 'var(--primary)' : 'var(--text-muted)',
-                    backgroundColor: isActive ? '#eff6ff' : 'transparent',
-                    textDecoration: 'none',
-                    fontWeight: isActive ? 500 : 400,
-                    transition: 'all 0.2s',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isActive) {
-                      e.currentTarget.style.backgroundColor = '#e2e8f0';
-                      e.currentTarget.style.color = 'var(--text-main)';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isActive) {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                      e.currentTarget.style.color = 'var(--text-muted)';
-                    }
-                  }}
-                >
-                  {item.icon}
-                  <span>{item.label}</span>
-                </NavLink>
-              );
-            })}
-          </nav>
-        </aside>
+          <div style={{ lineHeight: 1.2, minWidth: 0 }}>
+            <Typography.Title level={5} style={{ margin: 0, whiteSpace: 'nowrap' }}>
+              智能人脸签到系统
+            </Typography.Title>
+            {screens.sm && (
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                Face Recognition Attendance System
+              </Typography.Text>
+            )}
+          </div>
+        </div>
 
-        {/* Page Content */}
-        <main style={{ flex: 1, padding: '32px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+          <Button
+            type="text"
+            shape="circle"
+            aria-label="切换明暗主题"
+            icon={mode === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+            onClick={toggle}
+          />
+          {screens.md && (
+            <div style={{ textAlign: 'right', lineHeight: 1.2 }}>
+              <div style={{ fontSize: 14, fontWeight: 500 }}>Admin User</div>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                System Administrator
+              </Typography.Text>
+            </div>
+          )}
+          <Avatar style={{ backgroundColor: token.colorPrimary }}>A</Avatar>
+        </div>
+      </Header>
+
+      <AntLayout style={{ width: '100%', maxWidth: 1920, margin: '0 auto' }}>
+        {isDesktop && (
+          <Sider
+            width={248}
+            style={{
+              background: token.colorBgContainer,
+              borderInlineEnd: `1px solid ${token.colorBorderSecondary}`,
+            }}
+          >
+            <div style={{ padding: '20px 12px' }}>
+              <Typography.Text
+                type="secondary"
+                style={{ fontSize: 12, letterSpacing: '0.08em', paddingInlineStart: 12 }}
+              >
+                MENU
+              </Typography.Text>
+              <div style={{ marginTop: 12 }}>{menu}</div>
+            </div>
+          </Sider>
+        )}
+
+        <Content style={{ padding: 'clamp(16px, 2.5vw, 32px)', minWidth: 0 }}>
           <Outlet />
-        </main>
-      </div>
-    </div>
+        </Content>
+      </AntLayout>
+
+      <Drawer
+        title="菜单"
+        placement="left"
+        width={260}
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        styles={{ body: { padding: 12 } }}
+      >
+        {menu}
+      </Drawer>
+    </AntLayout>
   );
 };
 

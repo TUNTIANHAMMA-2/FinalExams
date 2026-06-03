@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Badge, Button, Card, Col, Descriptions, Empty, Flex, Row, Space, Typography, theme } from 'antd';
 import { AlertTriangle, Play, ScanFace, Square, UserCheck } from 'lucide-react';
 import type { RecognitionResponse } from '../api';
 import { recognizeFrame } from '../api';
 
-const ASCII_CHARS = '@#S%?*+;:,. ';
-const ASCII_WIDTH = 96;
+const ASCII_CHARS = ' .,:;irsXA253hMHGS#9B&@';
+const ASCII_WIDTH = 118;
 const ASCII_FRAME_INTERVAL_MS = 80;
 const RECOGNITION_INTERVAL_MS = 1600;
 
@@ -17,7 +18,7 @@ function frameToAscii(video: HTMLVideoElement, canvas: HTMLCanvasElement) {
 
   const aspectRatio = video.videoHeight / video.videoWidth;
   const width = ASCII_WIDTH;
-  const height = Math.max(1, Math.round(width * aspectRatio * 0.46));
+  const height = Math.max(1, Math.round(width * aspectRatio * 0.42));
   const context = canvas.getContext('2d');
 
   if (!context) {
@@ -26,7 +27,9 @@ function frameToAscii(video: HTMLVideoElement, canvas: HTMLCanvasElement) {
 
   canvas.width = width;
   canvas.height = height;
+  context.filter = 'contrast(1.35) saturate(0.7) brightness(1.08)';
   context.drawImage(video, 0, 0, width, height);
+  context.filter = 'none';
 
   const { data } = context.getImageData(0, 0, width, height);
   const lines: string[] = [];
@@ -36,9 +39,15 @@ function frameToAscii(video: HTMLVideoElement, canvas: HTMLCanvasElement) {
     for (let x = 0; x < width; x += 1) {
       const offset = (y * width + x) * 4;
       const brightness = data[offset] * 0.299 + data[offset + 1] * 0.587 + data[offset + 2] * 0.114;
+      const leftOffset = (y * width + Math.max(0, x - 1)) * 4;
+      const topOffset = (Math.max(0, y - 1) * width + x) * 4;
+      const leftBrightness = data[leftOffset] * 0.299 + data[leftOffset + 1] * 0.587 + data[leftOffset + 2] * 0.114;
+      const topBrightness = data[topOffset] * 0.299 + data[topOffset + 1] * 0.587 + data[topOffset + 2] * 0.114;
+      const edge = Math.min(60, Math.abs(brightness - leftBrightness) + Math.abs(brightness - topBrightness));
+      const enhanced = Math.max(0, Math.min(255, brightness * 0.82 + edge * 1.75));
       const charIndex = Math.min(
         ASCII_CHARS.length - 1,
-        Math.floor((brightness / 255) * (ASCII_CHARS.length - 1)),
+        Math.floor((enhanced / 255) * (ASCII_CHARS.length - 1)),
       );
       line += ASCII_CHARS[charIndex];
     }
@@ -68,6 +77,8 @@ const LiveAttendance: React.FC = () => {
   const asciiIntervalRef = useRef<number | null>(null);
   const recognitionIntervalRef = useRef<number | null>(null);
   const recognizingRef = useRef(false);
+
+  const { token } = theme.useToken();
 
   const [streamStatus, setStreamStatus] = useState<StreamStatus>('idle');
   const [asciiFrame, setAsciiFrame] = useState('请点击右上角“启动摄像头”');
@@ -179,105 +190,106 @@ const LiveAttendance: React.FC = () => {
     return recognition.status;
   })();
 
+  const isError = recognitionStatus === 'unknown' || recognitionStatus === 'error';
+  const statusColor = recognitionStatus === 'success'
+    ? token.colorSuccess
+    : isError
+      ? token.colorError
+      : token.colorPrimary;
+  const asciiColor = recognitionStatus === 'success' ? '#34d399' : isError ? '#f87171' : '#e5e7eb';
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', height: '100%' }}>
+    <Space direction="vertical" size={24} style={{ width: '100%' }}>
       <video ref={videoRef} playsInline muted style={{ display: 'none' }} />
       <canvas ref={asciiCanvasRef} style={{ display: 'none' }} />
       <canvas ref={captureCanvasRef} style={{ display: 'none' }} />
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <Flex justify="space-between" align="center" wrap gap={16}>
         <div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 600, margin: '0 0 4px 0' }}>实时签到</h2>
-          <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.875rem' }}>使用浏览器摄像头 + Python OpenCV API 完成人脸识别与自动签到</p>
+          <Typography.Title level={3} style={{ margin: 0 }}>
+            实时签到
+          </Typography.Title>
+          <Typography.Text type="secondary">
+            使用浏览器摄像头 + Python OpenCV API 完成人脸识别与自动签到
+          </Typography.Text>
         </div>
-        <div style={{ display: 'flex', gap: '12px' }}>
-          <button className="btn" onClick={startCamera} disabled={streamStatus === 'starting' || streamStatus === 'running'}>
-            <Play size={16} /> 启动摄像头
-          </button>
-          <button className="btn btn-outline" onClick={stopCamera} disabled={streamStatus === 'idle'}>
-            <Square size={16} /> 停止
-          </button>
-        </div>
-      </div>
+        <Space wrap>
+          <Button
+            type="primary"
+            icon={<Play size={16} />}
+            onClick={startCamera}
+            loading={streamStatus === 'starting'}
+            disabled={streamStatus === 'starting' || streamStatus === 'running'}
+          >
+            启动摄像头
+          </Button>
+          <Button icon={<Square size={16} />} onClick={stopCamera} disabled={streamStatus === 'idle'}>
+            停止
+          </Button>
+        </Space>
+      </Flex>
 
-      <div style={{ display: 'flex', gap: '24px', flex: 1, minHeight: 0 }}>
-        <div className="card" style={{ flex: 2, display: 'flex', flexDirection: 'column', padding: '0' }}>
-          <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontWeight: 500 }}>摄像头画面 (ASCII 渲染)</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: streamStatus === 'running' ? 'var(--success)' : 'var(--danger)' }} />
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                {streamStatus === 'running' ? '运行中 (Live)' : '未启动 (Offline)'}
-              </span>
+      <Row gutter={[24, 24]}>
+        <Col xs={24} xl={16}>
+          <Card
+            title="摄像头画面 (ASCII 渲染)"
+            extra={
+              <Badge
+                status={streamStatus === 'running' ? 'success' : 'error'}
+                text={streamStatus === 'running' ? '运行中 (Live)' : '未启动 (Offline)'}
+              />
+            }
+          >
+            <div className="ascii-cam" style={{ minHeight: 360 }}>
+              <pre style={{ color: asciiColor }}>{asciiFrame}</pre>
             </div>
-          </div>
+          </Card>
+        </Col>
 
-          <div style={{ padding: '24px', flex: 1, display: 'flex', flexDirection: 'column' }}>
-            <div className="ascii-cam" style={{ flex: 1 }}>
-              <pre style={{
-                fontSize: '10px',
-                lineHeight: '1',
-                whiteSpace: 'pre',
-                fontFamily: 'var(--font-mono)',
-                color: recognitionStatus === 'success' ? '#10b981' : (recognitionStatus === 'unknown' || recognitionStatus === 'error' ? '#ef4444' : '#e5e7eb'),
-                transition: 'color 0.3s',
-                margin: 0,
-                overflow: 'hidden',
-              }}>
-                {asciiFrame}
-              </pre>
-            </div>
-          </div>
-        </div>
+        <Col xs={24} xl={8}>
+          <Space direction="vertical" size={24} style={{ width: '100%' }}>
+            <Card title="当前状态">
+              <Flex vertical align="center" gap={4} style={{ textAlign: 'center', padding: '8px 0' }}>
+                {recognitionStatus === 'success' && <UserCheck size={48} color={token.colorSuccess} />}
+                {isError && <AlertTriangle size={48} color={token.colorError} />}
+                {(recognitionStatus === 'idle' || recognitionStatus === 'recognizing') && (
+                  <ScanFace size={48} color={token.colorPrimary} />
+                )}
+                <Typography.Title level={4} style={{ color: statusColor, margin: '12px 0 0' }}>
+                  {recognitionText}
+                </Typography.Title>
+                <Typography.Text type="secondary">FACE_COUNT: {recognition?.face_count ?? 0}</Typography.Text>
+                {errorMessage && (
+                  <Typography.Text type="danger" style={{ fontSize: 12, marginTop: 8 }}>
+                    ERROR: {errorMessage}
+                  </Typography.Text>
+                )}
+              </Flex>
+            </Card>
 
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
-            <h3 style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '24px', alignSelf: 'flex-start', width: '100%' }}>当前状态</h3>
-
-            {recognitionStatus === 'success' && <UserCheck size={48} color="var(--success)" style={{ marginBottom: '16px' }} />}
-            {recognitionStatus === 'unknown' || recognitionStatus === 'error' ? <AlertTriangle size={48} color="var(--danger)" style={{ marginBottom: '16px' }} /> : null}
-            {recognitionStatus === 'idle' || recognitionStatus === 'recognizing' ? <ScanFace size={48} color="var(--primary)" style={{ marginBottom: '16px' }} /> : null}
-
-            <div style={{
-              fontSize: '1.25rem',
-              fontWeight: 600,
-              color: recognitionStatus === 'success' ? 'var(--success)' : (recognitionStatus === 'unknown' || recognitionStatus === 'error' ? 'var(--danger)' : 'var(--primary)'),
-            }}>
-              {recognitionText}
-            </div>
-            <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginTop: '8px' }}>
-              FACE_COUNT: {recognition?.face_count ?? 0}
-            </div>
-            {errorMessage && <div style={{ color: 'var(--danger)', fontSize: '0.75rem', marginTop: '12px' }}>ERROR: {errorMessage}</div>}
-          </div>
-
-          <div className="card" style={{ flex: 1 }}>
-            <h3 style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '16px' }}>识别结果</h3>
-
-            {primary ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>姓名及学号</div>
-                  <div style={{ fontSize: '1.125rem', fontWeight: 600 }}>{primary.name} ({primary.user_id})</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>签到时间</div>
-                  <div style={{ fontSize: '0.875rem' }}>{primary.attendance ? `${primary.attendance.date} ${primary.attendance.time}` : 'N/A'}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>LBPH 置信度</div>
-                  <div style={{ fontSize: '0.875rem', fontWeight: 500 }}>{primary.confidence?.toFixed(2) ?? 'N/A'}</div>
-                </div>
-              </div>
-            ) : (
-              <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-                暂无人员数据
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
+            <Card title="识别结果">
+              {primary ? (
+                <Descriptions column={1} size="small" colon={false}>
+                  <Descriptions.Item label="姓名及学号">
+                    <Typography.Text strong>
+                      {primary.name} ({primary.user_id})
+                    </Typography.Text>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="签到时间">
+                    {primary.attendance ? `${primary.attendance.date} ${primary.attendance.time}` : 'N/A'}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="LBPH 置信度">
+                    {primary.confidence?.toFixed(2) ?? 'N/A'}
+                  </Descriptions.Item>
+                </Descriptions>
+              ) : (
+                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无人员数据" />
+              )}
+            </Card>
+          </Space>
+        </Col>
+      </Row>
+    </Space>
   );
 };
 
