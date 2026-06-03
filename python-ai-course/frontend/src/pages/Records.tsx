@@ -1,17 +1,26 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Button, Card, Empty, Flex, Input, Space, Table, Tag, Typography, type TableColumnsType } from 'antd';
+import { Button, Card, Empty, Flex, Input, Space, Table, Tabs, Tag, Typography, type TableColumnsType } from 'antd';
 import { Download, RefreshCw, Search } from 'lucide-react';
-import type { AttendanceRecord } from '../api';
-import { fetchRecords } from '../api';
+import type { AttendanceRecord, RecognitionEvent } from '../api';
+import { fetchEvents, fetchRecords } from '../api';
 
 function statusTag(status: string) {
   if (status === 'success') return <Tag color="success">签到成功</Tag>;
   if (status === 'duplicate') return <Tag color="warning">重复签到</Tag>;
-  return <Tag color="error">{status}</Tag>;
+  if (status === 'recognized') return <Tag color="processing">识别预览</Tag>;
+  if (status === 'unknown') return <Tag color="error">未知人脸</Tag>;
+  if (status === 'no_model') return <Tag color="default">模型未训练</Tag>;
+  return <Tag color="default">{status}</Tag>;
+}
+
+function escapeCsv(value?: string) {
+  const text = value ?? '';
+  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
 const Records: React.FC = () => {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
+  const [events, setEvents] = useState<RecognitionEvent[]>([]);
   const [filterName, setFilterName] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -19,8 +28,9 @@ const Records: React.FC = () => {
   const loadRecords = async () => {
     try {
       setLoading(true);
-      const response = await fetchRecords();
-      setRecords(response.records);
+      const [recordResponse, eventResponse] = await Promise.all([fetchRecords(), fetchEvents()]);
+      setRecords(recordResponse.records);
+      setEvents(eventResponse.events);
       setErrorMessage('');
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : '记录加载失败');
@@ -41,10 +51,17 @@ const Records: React.FC = () => {
     [records, filterName],
   );
 
+  const filteredEvents = useMemo(
+    () => events.filter((event) => event.name.includes(filterName) || event.user_id.includes(filterName)),
+    [events, filterName],
+  );
+
   const exportCsv = () => {
-    const header = 'date,time,user_id,name,status';
+    const header = 'date,time,user_id,name,status,confidence,event_id';
     const rows = filteredRecords.map((record) =>
-      [record.date, record.time, record.user_id, record.name, record.status].join(','),
+      [record.date, record.time, record.user_id, record.name, record.status, record.confidence, record.event_id]
+        .map(escapeCsv)
+        .join(','),
     );
     const blob = new Blob([[header, ...rows].join('\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -83,6 +100,24 @@ const Records: React.FC = () => {
       ],
       onFilter: (value, record) => record.status === value,
     },
+    { title: '置信度', dataIndex: 'confidence', key: 'confidence', render: (value: string) => value || '-' },
+    { title: '事件ID', dataIndex: 'event_id', key: 'event_id', render: (value: string) => value || '-' },
+  ];
+
+  const eventColumns: TableColumnsType<RecognitionEvent> = [
+    {
+      title: '时间',
+      dataIndex: 'timestamp',
+      key: 'timestamp',
+      sorter: (a, b) => a.timestamp.localeCompare(b.timestamp),
+      defaultSortOrder: 'descend',
+    },
+    { title: '事件', dataIndex: 'event_type', key: 'event_type', render: (value: string) => statusTag(value) },
+    { title: '学号', dataIndex: 'user_id', key: 'user_id', render: (value: string) => value || '-' },
+    { title: '姓名', dataIndex: 'name', key: 'name', render: (value: string) => value || '-' },
+    { title: '置信度', dataIndex: 'confidence', key: 'confidence', render: (value: string) => value || '-' },
+    { title: '人脸数', dataIndex: 'face_count', key: 'face_count' },
+    { title: '说明', dataIndex: 'message', key: 'message', render: (value: string) => value || '-' },
   ];
 
   return (
@@ -117,15 +152,40 @@ const Records: React.FC = () => {
         <Typography.Text type="danger">ERROR: {errorMessage}</Typography.Text>
       )}
 
-      <Card styles={{ body: { padding: 0 } }}>
-        <Table<AttendanceRecord>
-          rowKey={(record, index) => `${record.date}-${record.time}-${record.user_id}-${index}`}
-          columns={columns}
-          dataSource={filteredRecords}
-          loading={loading}
-          scroll={{ x: 'max-content' }}
-          pagination={{ pageSize: 10, showSizeChanger: true, responsive: true, hideOnSinglePage: false }}
-          locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="没有找到匹配的记录" /> }}
+      <Card>
+        <Tabs
+          items={[
+            {
+              key: 'attendance',
+              label: `签到记录 (${filteredRecords.length})`,
+              children: (
+                <Table<AttendanceRecord>
+                  rowKey={(record, index) => `${record.date}-${record.time}-${record.user_id}-${index}`}
+                  columns={columns}
+                  dataSource={filteredRecords}
+                  loading={loading}
+                  scroll={{ x: 'max-content' }}
+                  pagination={{ pageSize: 10, showSizeChanger: true, responsive: true, hideOnSinglePage: false }}
+                  locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="没有找到匹配的记录" /> }}
+                />
+              ),
+            },
+            {
+              key: 'events',
+              label: `识别事件 (${filteredEvents.length})`,
+              children: (
+                <Table<RecognitionEvent>
+                  rowKey={(event) => event.event_id}
+                  columns={eventColumns}
+                  dataSource={filteredEvents}
+                  loading={loading}
+                  scroll={{ x: 'max-content' }}
+                  pagination={{ pageSize: 10, showSizeChanger: true, responsive: true, hideOnSinglePage: false }}
+                  locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无识别事件" /> }}
+                />
+              ),
+            },
+          ]}
         />
       </Card>
     </Space>

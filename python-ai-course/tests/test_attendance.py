@@ -18,10 +18,12 @@ class AttendanceTest(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def test_mark_attendance_blocks_duplicate_for_same_day(self) -> None:
-        first = attendance.mark_attendance("2026001", "Test User")
-        second = attendance.mark_attendance("2026001", "Test User")
+        first = attendance.mark_attendance("2026001", "Test User", confidence="12.3", event_id="evt-1")
+        second = attendance.mark_attendance("2026001", "Test User", confidence="12.3", event_id="evt-2")
 
         self.assertEqual(first["status"], "success")
+        self.assertEqual(first["confidence"], "12.3")
+        self.assertEqual(first["event_id"], "evt-1")
         self.assertEqual(second["status"], "duplicate")
 
 

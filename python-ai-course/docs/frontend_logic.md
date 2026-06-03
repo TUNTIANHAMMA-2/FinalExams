@@ -46,15 +46,28 @@
 - 日期筛选
 - 姓名筛选
 - 签到记录表格
+- 识别事件表格
 - CSV 导出按钮
 
-字段：
+签到记录字段：
 
 - 日期
 - 时间
 - 学号
 - 姓名
 - 状态
+- 置信度
+- 事件 ID
+
+识别事件字段：
+
+- 事件 ID
+- 时间
+- 事件类型
+- 学号/姓名
+- 置信度
+- 人脸数量
+- 说明
 
 ### 1.4 数据分析页
 
@@ -62,6 +75,10 @@
 
 - 今日签到人数
 - 重复签到次数
+- 未知人脸次数
+- 出勤率
+- 识别成功率
+- 识别事件类型分布
 - 用户签到排行
 - 签到趋势图预留位
 
@@ -92,24 +109,57 @@ POST /api/register
 }
 ```
 
-### 2.2 签到状态接口
+### 2.2 实时识别接口
 
 ```text
-GET /api/attendance/live
+POST /api/recognize
+```
+
+请求数据：
+
+```json
+{
+  "image_data": "data:image/jpeg;base64,...",
+  "mark_attendance": true
+}
 ```
 
 返回数据：
 
 ```json
 {
-  "name": "张三",
-  "user_id": "2026001",
   "status": "success",
-  "time": "08:30:12"
+  "face_count": 1,
+  "event": {
+    "event_id": "20260603101530000000-0001",
+    "event_type": "success",
+    "message": "签到成功"
+  },
+  "primary_match": {
+    "name": "张三",
+    "user_id": "2026001",
+    "confidence": 42.1
+  }
 }
 ```
 
-### 2.3 统计接口
+说明：`no_face` 表示未检测到人脸，是正常空帧状态，不展示为识别异常，也不写入事件日志。
+
+### 2.3 识别事件接口
+
+```text
+GET /api/events
+```
+
+返回数据：
+
+```json
+{
+  "events": []
+}
+```
+
+### 2.4 统计接口
 
 ```text
 GET /api/stats
@@ -121,9 +171,16 @@ GET /api/stats
 {
   "total_records": 10,
   "status_counts": {
+    "success": 8
+  },
+  "event_total": 12,
+  "event_counts": {
     "success": 8,
-    "duplicate": 2
-  }
+    "duplicate": 2,
+    "unknown": 2
+  },
+  "attendance_rate": 0.8,
+  "recognition_success_rate": 0.8333
 }
 ```
 

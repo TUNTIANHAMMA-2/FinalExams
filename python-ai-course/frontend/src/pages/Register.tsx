@@ -19,6 +19,12 @@ const Register: React.FC = () => {
   const [snapshot, setSnapshot] = useState('');
   const [result, setResult] = useState<SubmitResult | null>(null);
 
+  /**
+   * 关闭摄像头并停止所有活动轨道。
+   * 
+   * 该函数会遍历 `streamRef` 持有的所有媒体轨道并显式调用 `stop()`，
+   * 同时清空 `srcObject` 以重置 `<video>` 标签状态，并将 `cameraOn` 状态重置为 `false`。
+   */
   const stopCamera = () => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
@@ -28,6 +34,14 @@ const Register: React.FC = () => {
     setCameraOn(false);
   };
 
+  /**
+   * 请求用户媒体设备权限并初始化摄像头预览。
+   * 
+   * 成功获取流后，将其绑定至 `videoRef` 并触发播放。
+   * 如果用户拒绝权限或浏览器不支持 `getUserMedia`，将通过 Antd message 提示错误。
+   * 
+   * @throws 摄像头不可用、用户拒绝授权等 MediaDevices 异常。
+   */
   const startCamera = async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
       message.error('当前浏览器不支持摄像头 API');
@@ -48,6 +62,15 @@ const Register: React.FC = () => {
     }
   };
 
+  /**
+   * 将当前 `<video>` 标签的画面渲染到隐蔽的 `<canvas>` 并导出。
+   * 
+   * 采用 `image/jpeg` 格式进行编码，压缩质量设定为 0.9。
+   * 此函数通常用于人脸采集逻辑，将 Canvas 内容转为 Base64 字符串供后端使用。
+   * 
+   * @returns 截取图像的 Base64 编码字符串。
+   * @throws 若 `videoRef` 或 `canvasRef` 未挂载，或 Canvas 上下文获取失败，则抛出 Error。
+   */
   const captureFrame = () => {
     if (!videoRef.current || !canvasRef.current) {
       throw new Error('摄像头画面未准备好');
@@ -66,6 +89,17 @@ const Register: React.FC = () => {
     return canvas.toDataURL('image/jpeg', 0.9);
   };
 
+  /**
+   * 处理人脸注册表单提交逻辑。
+   * 
+   * 包含以下核心步骤：
+   * 1. 开启加载状态并重置结果。
+   * 2. 调用 `captureFrame` 采集当前画面。
+   * 3. 将采集的图像数据与表单中的 userId, name 一并发送给后端 `registerFace` API。
+   * 4. 根据请求结果更新 UI 状态 (success/error)。
+   * 
+   * @param values - Form.Item 中定义的表单数据对象。
+   */
   const onFinish = async (values: RegisterValues) => {
     try {
       setLoading(true);
@@ -89,20 +123,21 @@ const Register: React.FC = () => {
   }, []);
 
   const previewBox: React.CSSProperties = {
-    height: 300,
+    minHeight: 300,
     borderRadius: token.borderRadius,
     background: token.colorFillQuaternary,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+    aspectRatio: '4 / 3', /* 强制容器保持常用摄像头比例 */
   };
 
   return (
-    <div style={{ maxWidth: 980, margin: '0 auto' }}>
+    <Space direction="vertical" size={24} style={{ width: '100%' }}>
       <canvas ref={canvasRef} style={{ display: 'none' }} />
 
-      <div style={{ marginBottom: 24 }}>
+      <div>
         <Typography.Title level={3} style={{ margin: 0 }}>
           人脸注册
         </Typography.Title>
@@ -132,7 +167,7 @@ const Register: React.FC = () => {
                     ref={videoRef}
                     playsInline
                     muted
-                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: cameraOn ? 'block' : 'none' }}
+                    style={{ width: '100%', height: '100%', objectFit: 'contain', display: cameraOn ? 'block' : 'none' }}
                   />
                   {!cameraOn && (
                     <Space direction="vertical" align="center" style={{ color: token.colorTextSecondary }}>
@@ -150,7 +185,7 @@ const Register: React.FC = () => {
               <Form.Item label="最近采集">
                 <div style={{ ...previewBox, border: `1px solid ${token.colorBorderSecondary}` }}>
                   {snapshot ? (
-                    <img src={snapshot} alt="最近采集" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <img src={snapshot} alt="最近采集" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                   ) : (
                     <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                       暂无
@@ -184,7 +219,7 @@ const Register: React.FC = () => {
           </Form.Item>
         </Form>
       </Card>
-    </div>
+    </Space>
   );
 };
 

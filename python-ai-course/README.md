@@ -10,7 +10,8 @@
 - 防重复打卡
 - ASCII 风格预览
 - 签到记录保存
-- 基础统计
+- 识别事件日志
+- 出勤率、识别成功率等基础统计
 
 ## 目录结构
 
@@ -23,6 +24,7 @@ app/
   face_detect.py
   face_recognize.py
   attendance.py
+  events.py
   ascii_render.py
   storage.py
   analytics.py
@@ -30,8 +32,19 @@ data/
   faces/
   encodings/
   exports/
+  attendance.csv
+  event_log.csv
 docs/
 ```
+
+## 数据表设计
+
+项目使用 CSV 作为轻量级本地数据存储，便于答辩展示底层业务逻辑。
+
+- `data/attendance.csv` 是签到结果表，只保存真正生效的签到记录；同一用户同一天重复识别时不会追加新签到行。
+- `data/event_log.csv` 是识别事件表，保存 `success`、`duplicate`、`recognized`、`unknown`、`no_model` 等识别过程事件，用于分析识别成功率、重复打卡次数和异常原因。
+- `no_face` 表示摄像头画面中没有检测到人脸，是正常空帧状态，不写入事件日志，避免长时间运行时产生大量无意义日志。
+- `event_id` 用于关联一次成功写入的签到结果与对应识别事件，便于从业务结果反查识别过程。
 
 ## 安装依赖
 
@@ -76,6 +89,8 @@ npm run dev
 2. 进入 `Live Stream` 页面，点击 `Start`，浏览器会调用摄像头并定时请求 Python API 做人脸识别签到。
 3. 进入 `Records` 页面查看真实签到记录。
 4. 进入 `Analytics` 页面查看真实统计。
+
+统计口径：出勤率基于成功签到人数和注册用户数计算；识别成功率基于 `success + duplicate + recognized` 与 `unknown` 计算，排除 `no_face` 空帧。
 
 命令行演示仍可单独运行：
 

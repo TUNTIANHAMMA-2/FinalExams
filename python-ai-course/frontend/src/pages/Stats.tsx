@@ -7,7 +7,12 @@ import { fetchStats } from '../api';
 const emptyStats: StatsResponse = {
   total_records: 0,
   status_counts: {},
+  event_total: 0,
+  event_counts: {},
   user_counts: {},
+  registered_user_count: 0,
+  attendance_rate: 0,
+  recognition_success_rate: 0,
 };
 
 const Stats: React.FC = () => {
@@ -37,8 +42,10 @@ const Stats: React.FC = () => {
   }, []);
 
   const successCount = stats.status_counts.success ?? 0;
-  const duplicateCount = stats.status_counts.duplicate ?? 0;
-  const unknownCount = stats.status_counts.unknown ?? 0;
+  const duplicateCount = stats.event_counts.duplicate ?? 0;
+  const recognizedCount = stats.event_counts.recognized ?? 0;
+  const unknownCount = stats.event_counts.unknown ?? 0;
+  const noModelCount = stats.event_counts.no_model ?? 0;
   const userEntries = Object.entries(stats.user_counts);
   const maxUserCount = Math.max(1, ...userEntries.map(([, value]) => value));
 
@@ -49,7 +56,7 @@ const Stats: React.FC = () => {
       icon: <Users size={20} />,
       color: token.colorSuccess,
       bg: token.colorSuccessBg,
-      note: '来自 data/attendance.csv',
+      note: `有效签到记录 ${successCount} 条，出勤率 ${(stats.attendance_rate * 100).toFixed(1)}%`,
     },
     {
       label: '拦截重复签到',
@@ -60,12 +67,12 @@ const Stats: React.FC = () => {
       note: '自动忽略重复打卡请求',
     },
     {
-      label: '未识别异常',
+      label: '未知人脸事件',
       value: unknownCount,
       icon: <AlertTriangle size={20} />,
       color: token.colorError,
       bg: token.colorErrorBg,
-      note: '记录为陌生人或质量差图像',
+      note: `无模型事件 ${noModelCount} 次`,
     },
   ];
 
@@ -115,6 +122,67 @@ const Stats: React.FC = () => {
           </Col>
         ))}
       </Row>
+
+      <Row gutter={[24, 24]}>
+        <Col xs={24} md={8}>
+          <Card>
+            <Statistic
+              title="识别事件总数"
+              value={stats.event_total}
+              valueStyle={{ fontSize: 28, fontWeight: 700 }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} md={8}>
+          <Card>
+            <Statistic
+              title="出勤率"
+              value={stats.attendance_rate * 100}
+              precision={1}
+              suffix="%"
+              valueStyle={{ fontSize: 28, fontWeight: 700, color: token.colorSuccess }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} md={8}>
+          <Card>
+            <Statistic
+              title="识别成功率"
+              value={stats.recognition_success_rate * 100}
+              precision={1}
+              suffix="%"
+              valueStyle={{ fontSize: 28, fontWeight: 700, color: token.colorPrimary }}
+            />
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              success + duplicate + recognized / success + duplicate + recognized + unknown，不包含 no_face 空帧。
+            </Typography.Text>
+          </Card>
+        </Col>
+      </Row>
+
+      {recognizedCount > 0 && (
+        <Typography.Text type="secondary">
+          识别预览事件 {recognizedCount} 次：表示系统识别到了注册用户，但本次请求没有写入签到表。
+        </Typography.Text>
+      )}
+
+      <Card title="识别事件类型分布">
+        {Object.keys(stats.event_counts).length === 0 ? (
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无识别事件" />
+        ) : (
+          <Space direction="vertical" size={14} style={{ width: '100%' }}>
+            {Object.entries(stats.event_counts).map(([eventType, count]) => (
+              <div key={eventType}>
+                <Flex justify="space-between" style={{ marginBottom: 4 }}>
+                  <Typography.Text>{eventType}</Typography.Text>
+                  <Typography.Text strong>{count}</Typography.Text>
+                </Flex>
+                <Progress percent={Math.round((count / Math.max(1, stats.event_total)) * 100)} />
+              </div>
+            ))}
+          </Space>
+        )}
+      </Card>
 
       <Card title="用户签到次数">
         {userEntries.length === 0 ? (

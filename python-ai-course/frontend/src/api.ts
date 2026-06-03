@@ -6,6 +6,19 @@ export type AttendanceRecord = {
   user_id: string;
   name: string;
   status: string;
+  confidence?: string;
+  event_id?: string;
+};
+
+export type RecognitionEvent = {
+  event_id: string;
+  timestamp: string;
+  event_type: string;
+  user_id: string;
+  name: string;
+  confidence: string;
+  face_count: string;
+  message: string;
 };
 
 export type RegisteredUser = {
@@ -24,7 +37,9 @@ export type RecognitionResponse = {
     user_id: string;
     confidence?: number;
     attendance?: AttendanceRecord;
+    event?: RecognitionEvent;
   } | null;
+  event?: RecognitionEvent | null;
   matches: Array<{
     matched: boolean;
     name: string;
@@ -37,7 +52,12 @@ export type RecognitionResponse = {
 export type StatsResponse = {
   total_records: number;
   status_counts: Record<string, number>;
+  event_total: number;
+  event_counts: Record<string, number>;
   user_counts: Record<string, number>;
+  registered_user_count: number;
+  attendance_rate: number;
+  recognition_success_rate: number;
 };
 
 async function requestJson<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -72,6 +92,10 @@ export function recognizeFrame(imageData: string, markAttendance = true) {
 
 export function fetchRecords() {
   return requestJson<{ records: AttendanceRecord[] }>("/api/records");
+}
+
+export function fetchEvents() {
+  return requestJson<{ events: RecognitionEvent[] }>("/api/events");
 }
 
 export function fetchStats() {

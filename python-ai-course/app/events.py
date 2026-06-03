@@ -1,0 +1,39 @@
+from __future__ import annotations
+
+from datetime import datetime
+from itertools import count
+
+from app import storage
+
+_COUNTER = count()
+
+
+def next_event_id(now: datetime | None = None) -> str:
+    """Return a timestamp-based event id that is stable enough for CSV logs."""
+    current = now or datetime.now()
+    return f"{current.strftime('%Y%m%d%H%M%S%f')}-{next(_COUNTER):04d}"
+
+
+def append_event(
+    event_type: str,
+    user_id: str = "",
+    name: str = "",
+    confidence: str = "",
+    face_count: int = 0,
+    message: str = "",
+    event_id: str | None = None,
+) -> dict[str, str]:
+    """Append one recognition event and return the persisted row."""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    row = {
+        "event_id": event_id or next_event_id(),
+        "timestamp": timestamp,
+        "event_type": event_type,
+        "user_id": user_id,
+        "name": name,
+        "confidence": confidence,
+        "face_count": str(face_count),
+        "message": message,
+    }
+    storage.append_event(row)
+    return row

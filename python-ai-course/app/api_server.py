@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from app import analytics, attendance, config, storage
+from app import analytics, attendance, config, events, storage
 
 MAX_JSON_BYTES = 10 * 1024 * 1024
 DATA_URL_PREFIX = re.compile(r"^data:image/[a-zA-Z0-9.+-]+;base64,")
@@ -95,31 +95,69 @@ def recognize_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
         normalized = dict(match)
         x, y, width, height = normalized["location"]
         normalized["location"] = {"x": x, "y": y, "width": width, "height": height}
-        if normalized["matched"] and should_mark:
-            normalized["attendance"] = attendance.mark_attendance(
-                normalized["user_id"],
-                normalized["name"],
-            )
         normalized_matches.append(normalized)
 
     matched_faces = [match for match in normalized_matches if match["matched"]]
     if matched_faces:
         primary = matched_faces[0]
-        record = primary.get("attendance")
-        result_status = record["status"] if record else "recognized"
+        confidence = f"{primary.get('confidence', '')}"
+        event_id = events.next_event_id()
+        preview_record = None
+        if should_mark:
+            preview_record = attendance.mark_attendance(
+                primary["user_id"],
+                primary["name"],
+                confidence=confidence,
+                event_id=event_id,
+            )
+
+        result_status = preview_record["status"] if preview_record else "recognized"
+        event_message = {
+            "success": "签到成功",
+            "duplicate": "当天已签到，已拦截重复写入",
+            "recognized": "识别成功，仅预览未写入签到",
+        }[result_status]
+        event_row = events.append_event(
+            result_status,
+            user_id=primary["user_id"],
+            name=primary["name"],
+            confidence=confidence,
+            face_count=len(locations),
+            message=event_message,
+            event_id=event_id,
+        )
+        if preview_record:
+            primary["attendance"] = preview_record
+        primary["event"] = event_row
     elif not locations:
         primary = None
         result_status = "no_face"
+        event_row = None
     elif known_faces.recognizer is None:
         primary = None
         result_status = "no_model"
+        event_row = events.append_event(
+            "no_model",
+            face_count=len(locations),
+            message="检测到人脸，但尚未训练识别模型",
+        )
     else:
         primary = None
         result_status = "unknown"
+        confidence = ""
+        if normalized_matches:
+            confidence = f"{normalized_matches[0].get('confidence', '')}"
+        event_row = events.append_event(
+            "unknown",
+            confidence=confidence,
+            face_count=len(locations),
+            message="检测到人脸，但未匹配到注册用户",
+        )
 
     return {
         "status": result_status,
         "face_count": len(locations),
+        "event": event_row,
         "primary_match": primary,
         "matches": normalized_matches,
     }
@@ -156,6 +194,8 @@ class ApiRequestHandler(BaseHTTPRequestHandler):
                 self._send_json(200, {"status": "ok"})
             elif path == "/api/records":
                 self._send_json(200, {"records": storage.read_attendance()})
+            elif path == "/api/events":
+                self._send_json(200, {"events": storage.read_events()})
             elif path == "/api/stats":
                 self._send_json(200, analytics.summarize_attendance())
             elif path == "/api/users":

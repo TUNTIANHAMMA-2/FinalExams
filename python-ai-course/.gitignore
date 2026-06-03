@@ -3,6 +3,7 @@ __pycache__/
 .venv/
 venv/
 data/attendance.csv
+data/event_log.csv
 data/encodings/*.json
 data/encodings/*.yml
 data/exports/*

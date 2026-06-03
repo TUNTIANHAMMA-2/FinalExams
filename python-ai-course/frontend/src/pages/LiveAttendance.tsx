@@ -1,24 +1,31 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Badge, Button, Card, Col, Descriptions, Empty, Flex, Row, Space, Typography, theme } from 'antd';
-import { AlertTriangle, Play, ScanFace, Square, UserCheck } from 'lucide-react';
+import { AlertTriangle, Play, ScanFace, Search, Square, UserCheck } from 'lucide-react';
 import type { RecognitionResponse } from '../api';
 import { recognizeFrame } from '../api';
-
-const ASCII_CHARS = ' .,:;irsXA253hMHGS#9B&@';
-const ASCII_WIDTH = 118;
-const ASCII_FRAME_INTERVAL_MS = 80;
-const RECOGNITION_INTERVAL_MS = 1600;
+import { ASCII_CHARS, ASCII_WIDTH, ASCII_FRAME_INTERVAL_MS, RECOGNITION_INTERVAL_MS } from '../constants';
 
 type StreamStatus = 'idle' | 'starting' | 'running' | 'error';
+type DisplayStatus = 'idle' | 'recognizing' | 'recognized' | 'success' | 'unknown' | 'no_face' | 'no_model' | 'error';
 
-function frameToAscii(video: HTMLVideoElement, canvas: HTMLCanvasElement) {
+/**
+ * 将视频帧转换为 ASCII 字符画字符串。
+ * 
+ * 此函数通过 Canvas 获取视频图像数据，计算像素亮度，并映射到预定义的 ASCII 字符集。
+ * 同时应用了简单的边缘检测算法以增强视觉对比度。
+ * 
+ * @param video - 视频源 HTMLVideoElement。
+ * @param canvas - 用于图像处理的 Canvas 元素。
+ * @returns 转换后的 ASCII 字符字符串，各行通过换行符分隔。
+ */
+function frameToAscii(video: HTMLVideoElement, canvas: HTMLCanvasElement): string {
   if (!video.videoWidth || !video.videoHeight) {
     return '正在等待摄像头画面...';
   }
 
   const aspectRatio = video.videoHeight / video.videoWidth;
   const width = ASCII_WIDTH;
-  const height = Math.max(1, Math.round(width * aspectRatio * 0.42));
+  const height = Math.max(1, Math.round(width * aspectRatio * 0.55)); // 调整比例，使画面更接近原比例
   const context = canvas.getContext('2d');
 
   if (!context) {
@@ -27,7 +34,8 @@ function frameToAscii(video: HTMLVideoElement, canvas: HTMLCanvasElement) {
 
   canvas.width = width;
   canvas.height = height;
-  context.filter = 'contrast(1.35) saturate(0.7) brightness(1.08)';
+  // 增强对比度和亮度，使 ASCII 效果更鲜明
+  context.filter = 'contrast(1.5) saturate(0.5) brightness(1.2)';
   context.drawImage(video, 0, 0, width, height);
   context.filter = 'none';
 
@@ -38,17 +46,19 @@ function frameToAscii(video: HTMLVideoElement, canvas: HTMLCanvasElement) {
     let line = '';
     for (let x = 0; x < width; x += 1) {
       const offset = (y * width + x) * 4;
-      const brightness = data[offset] * 0.299 + data[offset + 1] * 0.587 + data[offset + 2] * 0.114;
+      // 使用简单的亮度计算
+      const brightness = data[offset] * 0.2126 + data[offset + 1] * 0.7152 + data[offset + 2] * 0.0722;
+      
+      // 锐化边缘：检测邻近像素亮度差
       const leftOffset = (y * width + Math.max(0, x - 1)) * 4;
       const topOffset = (Math.max(0, y - 1) * width + x) * 4;
-      const leftBrightness = data[leftOffset] * 0.299 + data[leftOffset + 1] * 0.587 + data[leftOffset + 2] * 0.114;
-      const topBrightness = data[topOffset] * 0.299 + data[topOffset + 1] * 0.587 + data[topOffset + 2] * 0.114;
-      const edge = Math.min(60, Math.abs(brightness - leftBrightness) + Math.abs(brightness - topBrightness));
-      const enhanced = Math.max(0, Math.min(255, brightness * 0.82 + edge * 1.75));
-      const charIndex = Math.min(
-        ASCII_CHARS.length - 1,
-        Math.floor((enhanced / 255) * (ASCII_CHARS.length - 1)),
-      );
+      const leftBrightness = data[leftOffset] * 0.2126 + data[leftOffset + 1] * 0.7152 + data[leftOffset + 2] * 0.0722;
+      const topBrightness = data[topOffset] * 0.2126 + data[topOffset + 1] * 0.7152 + data[topOffset + 2] * 0.0722;
+      
+      const edge = Math.abs(brightness - leftBrightness) + Math.abs(brightness - topBrightness);
+      const enhanced = Math.min(255, brightness + edge * 2.5); // 增强边缘
+
+      const charIndex = Math.floor((enhanced / 255) * (ASCII_CHARS.length - 1));
       line += ASCII_CHARS[charIndex];
     }
     lines.push(line);
@@ -171,10 +181,13 @@ const LiveAttendance: React.FC = () => {
   }, []);
 
   const primary = recognition?.primary_match;
-  const recognitionStatus = (() => {
+  const recognitionStatus: DisplayStatus = (() => {
     if (streamStatus === 'error') return 'error';
     if (!recognition) return streamStatus === 'running' ? 'recognizing' : 'idle';
+    if (recognition.status === 'recognized') return 'recognized';
     if (recognition.status === 'success' || recognition.status === 'duplicate') return 'success';
+    if (recognition.status === 'no_face') return 'no_face';
+    if (recognition.status === 'no_model') return 'no_model';
     if (recognition.status === 'unknown') return 'unknown';
     return 'recognizing';
   })();
@@ -182,6 +195,7 @@ const LiveAttendance: React.FC = () => {
   const recognitionText = (() => {
     if (streamStatus === 'error') return '摄像头异常';
     if (!recognition) return streamStatus === 'running' ? '识别中...' : '等待识别...';
+    if (recognition.status === 'recognized') return '识别成功（未写入签到）';
     if (recognition.status === 'success') return '签到成功';
     if (recognition.status === 'duplicate') return '重复签到';
     if (recognition.status === 'no_model') return '尚未注册人脸模型';
@@ -190,13 +204,22 @@ const LiveAttendance: React.FC = () => {
     return recognition.status;
   })();
 
-  const isError = recognitionStatus === 'unknown' || recognitionStatus === 'error';
+  const isError = recognitionStatus === 'unknown' || recognitionStatus === 'error' || recognitionStatus === 'no_model';
+  const isNeutral = recognitionStatus === 'no_face' || recognitionStatus === 'idle' || recognitionStatus === 'recognizing';
   const statusColor = recognitionStatus === 'success'
     ? token.colorSuccess
     : isError
       ? token.colorError
-      : token.colorPrimary;
-  const asciiColor = recognitionStatus === 'success' ? '#34d399' : isError ? '#f87171' : '#e5e7eb';
+      : recognitionStatus === 'no_face'
+        ? token.colorTextSecondary
+        : token.colorPrimary;
+  const asciiColor = recognitionStatus === 'success'
+    ? '#34d399'
+    : recognitionStatus === 'recognized'
+      ? '#38bdf8'
+      : isError
+        ? '#f87171'
+        : '#e5e7eb';
 
   return (
     <Space direction="vertical" size={24} style={{ width: '100%' }}>
@@ -240,7 +263,7 @@ const LiveAttendance: React.FC = () => {
               />
             }
           >
-            <div className="ascii-cam" style={{ minHeight: 360 }}>
+            <div className="ascii-cam" style={{ minHeight: 480 }}>
               <pre style={{ color: asciiColor }}>{asciiFrame}</pre>
             </div>
           </Card>
@@ -252,6 +275,8 @@ const LiveAttendance: React.FC = () => {
               <Flex vertical align="center" gap={4} style={{ textAlign: 'center', padding: '8px 0' }}>
                 {recognitionStatus === 'success' && <UserCheck size={48} color={token.colorSuccess} />}
                 {isError && <AlertTriangle size={48} color={token.colorError} />}
+                {recognitionStatus === 'no_face' && <Search size={48} color={token.colorTextSecondary} />}
+                {recognitionStatus === 'recognized' && <ScanFace size={48} color={token.colorPrimary} />}
                 {(recognitionStatus === 'idle' || recognitionStatus === 'recognizing') && (
                   <ScanFace size={48} color={token.colorPrimary} />
                 )}
@@ -259,6 +284,11 @@ const LiveAttendance: React.FC = () => {
                   {recognitionText}
                 </Typography.Title>
                 <Typography.Text type="secondary">FACE_COUNT: {recognition?.face_count ?? 0}</Typography.Text>
+                {recognitionStatus === 'no_face' && (
+                  <Typography.Text type="secondary" style={{ fontSize: 12, marginTop: 8 }}>
+                    这是正常空帧状态，不计为识别异常。
+                  </Typography.Text>
+                )}
                 {errorMessage && (
                   <Typography.Text type="danger" style={{ fontSize: 12, marginTop: 8 }}>
                     ERROR: {errorMessage}
@@ -283,7 +313,10 @@ const LiveAttendance: React.FC = () => {
                   </Descriptions.Item>
                 </Descriptions>
               ) : (
-                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无人员数据" />
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description={isNeutral ? '当前没有可签到人员' : '暂无人员数据'}
+                />
               )}
             </Card>
           </Space>

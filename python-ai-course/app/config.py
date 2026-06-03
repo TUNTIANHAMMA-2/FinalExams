@@ -6,6 +6,7 @@ FACES_DIR = DATA_DIR / "faces"
 ENCODINGS_DIR = DATA_DIR / "encodings"
 EXPORTS_DIR = DATA_DIR / "exports"
 ATTENDANCE_FILE = DATA_DIR / "attendance.csv"
+EVENT_LOG_FILE = DATA_DIR / "event_log.csv"
 LABELS_FILE = ENCODINGS_DIR / "labels.json"
 MODEL_FILE = ENCODINGS_DIR / "lbph_model.yml"
 

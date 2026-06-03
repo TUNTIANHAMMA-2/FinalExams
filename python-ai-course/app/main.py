@@ -41,11 +41,21 @@ def handle_stats() -> None:
 
 
 def handle_demo_checkin(args) -> None:
-    from app import attendance
+    from app import attendance, events
 
-    record = attendance.mark_attendance(args.user_id, args.name)
+    event_id = events.next_event_id()
+    record = attendance.mark_attendance(args.user_id, args.name, event_id=event_id)
+    event_row = events.append_event(
+        record["status"],
+        user_id=args.user_id,
+        name=args.name,
+        message="演示签到成功" if record["status"] == "success" else "演示重复签到",
+        event_id=event_id,
+    )
     print("演示签到结果")
     print(record)
+    print("识别事件")
+    print(event_row)
 
 
 def handle_serve(args) -> None:
@@ -57,7 +67,7 @@ def handle_serve(args) -> None:
 def handle_run() -> None:
     import cv2
 
-    from app import ascii_render, attendance, camera, config, face_detect, face_recognize, preprocess
+    from app import ascii_render, attendance, camera, config, events, face_detect, face_recognize, preprocess
 
     known_faces = face_recognize.load_known_faces()
     capture = camera.open_camera()
@@ -82,9 +92,38 @@ def handle_run() -> None:
             status_text = "No face"
             for match in matches:
                 if match["matched"]:
-                    record = attendance.mark_attendance(match["user_id"], match["name"])
+                    confidence = f"{match.get('confidence', '')}"
+                    event_id = events.next_event_id()
+                    record = attendance.mark_attendance(
+                        match["user_id"],
+                        match["name"],
+                        confidence=confidence,
+                        event_id=event_id,
+                    )
+                    events.append_event(
+                        record["status"],
+                        user_id=match["user_id"],
+                        name=match["name"],
+                        confidence=confidence,
+                        face_count=len(locations),
+                        message="签到成功" if record["status"] == "success" else "当天已签到，已拦截重复写入",
+                        event_id=event_id,
+                    )
                     status_text = f'{match["name"]}: {record["status"]}'
+                elif known_faces.recognizer is None:
+                    events.append_event(
+                        "no_model",
+                        face_count=len(locations),
+                        message="检测到人脸，但尚未训练识别模型",
+                    )
+                    status_text = "No trained model"
                 else:
+                    events.append_event(
+                        "unknown",
+                        confidence=f"{match.get('confidence', '')}",
+                        face_count=len(locations),
+                        message="检测到人脸，但未匹配到注册用户",
+                    )
                     status_text = "Unknown user"
 
             ascii_output = ascii_render.frame_to_ascii(frame, config.ASCII_WIDTH, config.ASCII_CHARS)

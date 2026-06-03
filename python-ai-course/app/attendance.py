@@ -5,7 +5,13 @@ from datetime import datetime
 from app import storage
 
 
-def mark_attendance(user_id: str, name: str) -> dict[str, str]:
+def mark_attendance(
+    user_id: str,
+    name: str,
+    confidence: str = "",
+    event_id: str = "",
+) -> dict[str, str]:
+    """Write a successful attendance record once per user per day."""
     now = datetime.now()
     current_date = now.strftime("%Y-%m-%d")
     current_time = now.strftime("%H:%M:%S")
@@ -18,6 +24,8 @@ def mark_attendance(user_id: str, name: str) -> dict[str, str]:
                 "user_id": user_id,
                 "name": name,
                 "status": "duplicate",
+                "confidence": confidence,
+                "event_id": event_id,
             }
 
     record = {
@@ -26,6 +34,8 @@ def mark_attendance(user_id: str, name: str) -> dict[str, str]:
         "user_id": user_id,
         "name": name,
         "status": "success",
+        "confidence": confidence,
+        "event_id": event_id,
     }
     storage.append_attendance(record)
     return record

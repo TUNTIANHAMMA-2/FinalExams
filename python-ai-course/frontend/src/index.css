@@ -35,7 +35,7 @@ html[data-theme='dark'] body {
     linear-gradient(rgba(255, 255, 255, 0.035) 50%, rgba(0, 0, 0, 0.08) 50%);
   background-size: 100% 100%, 100% 3px;
   border-radius: 8px;
-  padding: 16px;
+  padding: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -44,19 +44,20 @@ html[data-theme='dark'] body {
 }
 
 .ascii-cam pre {
-  margin: 0;
+  margin: 0 auto; /* 居中内容 */
   white-space: pre;
   font-family: var(--font-mono);
-  line-height: 0.82;
-  font-size: clamp(5px, 0.62vw, 9px);
-  letter-spacing: 0;
+  line-height: 0.65;
+  font-size: clamp(6px, 0.6vw, 14px);
+  letter-spacing: -0.8px;
   transition: color 0.3s ease;
   overflow: hidden;
-  text-align: left;
-  text-shadow: 0 0 6px rgba(52, 211, 153, 0.25);
-  transform: scaleX(0.92);
-  transform-origin: center;
+  text-align: center; /* 字符居中对齐 */
+  text-shadow: 0 0 3px rgba(52, 211, 153, 0.4);
+  transform: scaleX(0.75);
+  transform-origin: center top; /* 缩放原点设为中心 */
   user-select: none;
+  width: max-content; /* 确保内容宽度自适应，不被拉伸 */
 }
 
 /* Scrollbar */
