@@ -183,6 +183,13 @@ export function registerFace(userId: string, name: string, imageData: string | s
   });
 }
 
+export function validateFaceSample(imageData: string) {
+  return requestJson<{ status: string; valid: boolean; face_count: number; message: string }>("/api/validate-face", {
+    method: 'POST',
+    body: JSON.stringify({ image_data: imageData }),
+  });
+}
+
 export function recognizeFrame(imageData: string, markAttendance = true) {
   return requestJson<RecognitionResponse>("/api/recognize", {
     method: 'POST',

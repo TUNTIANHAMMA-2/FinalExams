@@ -1,19 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, App, Button, Card, Col, Form, Input, Row, Space, Typography, theme } from 'antd';
-import { Camera } from 'lucide-react';
-import { registerFace } from '../api';
+import { Camera, RotateCcw } from 'lucide-react';
+import { registerFace, validateFaceSample } from '../api';
 
 type RegisterValues = { userId: string; name: string };
 type SubmitResult = { type: 'success' | 'error'; text: string };
 
 const REQUIRED_SAMPLE_COUNT = 3;
-const SAMPLE_CAPTURE_DELAY_MS = 650;
-
-function wait(ms: number) {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms);
-  });
-}
 
 const Register: React.FC = () => {
   const { message } = App.useApp();
@@ -25,8 +18,8 @@ const Register: React.FC = () => {
 
   const [cameraOn, setCameraOn] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [capturing, setCapturing] = useState(false);
   const [snapshots, setSnapshots] = useState<string[]>([]);
-  const [sampleProgress, setSampleProgress] = useState(0);
   const [result, setResult] = useState<SubmitResult | null>(null);
 
   /**
@@ -99,13 +92,41 @@ const Register: React.FC = () => {
     return canvas.toDataURL('image/jpeg', 0.9);
   };
 
+  const resetSamples = () => {
+    setSnapshots([]);
+    setResult(null);
+  };
+
+  const captureSample = async () => {
+    try {
+      setCapturing(true);
+      setResult(null);
+      const imageData = captureFrame();
+      const validation = await validateFaceSample(imageData);
+      if (!validation.valid) {
+        setResult({ type: 'error', text: validation.message });
+        message.warning(validation.message);
+        return;
+      }
+
+      setSnapshots((prev) => [...prev, imageData].slice(0, REQUIRED_SAMPLE_COUNT));
+      message.success(`样本 ${snapshots.length + 1} / ${REQUIRED_SAMPLE_COUNT} 采集成功`);
+    } catch (error) {
+      const text = error instanceof Error ? error.message : '样本采集失败';
+      setResult({ type: 'error', text });
+      message.error(text);
+    } finally {
+      setCapturing(false);
+    }
+  };
+
   /**
    * 处理人脸注册表单提交逻辑。
    * 
    * 包含以下核心步骤：
    * 1. 开启加载状态并重置结果。
-   * 2. 连续调用 `captureFrame` 采集 3 张训练样本。
-   * 3. 将采集的图像数据与表单中的 userId, name 一并发送给后端 `registerFace` API。
+   * 2. 校验已手动采集满 3 张有效人脸样本。
+   * 3. 将样本图像数据与表单中的 userId, name 一并发送给后端 `registerFace` API。
    * 4. 根据请求结果更新 UI 状态 (success/error)。
    * 
    * @param values - Form.Item 中定义的表单数据对象。
@@ -114,20 +135,12 @@ const Register: React.FC = () => {
     try {
       setLoading(true);
       setResult(null);
-      setSampleProgress(0);
 
-      const imageDataList: string[] = [];
-      for (let index = 0; index < REQUIRED_SAMPLE_COUNT; index += 1) {
-        if (index > 0) {
-          await wait(SAMPLE_CAPTURE_DELAY_MS);
-        }
-        const imageData = captureFrame();
-        imageDataList.push(imageData);
-        setSnapshots((prev) => [...prev, imageData]);
-        setSampleProgress(index + 1);
+      if (snapshots.length !== REQUIRED_SAMPLE_COUNT) {
+        throw new Error(`请先手动采集 ${REQUIRED_SAMPLE_COUNT} 张有效人脸样本`);
       }
 
-      const response = await registerFace(values.userId, values.name, imageDataList);
+      const response = await registerFace(values.userId, values.name, snapshots);
       setResult({ type: 'success', text: response.message });
       message.success('注册成功');
     } catch (error) {
@@ -136,7 +149,6 @@ const Register: React.FC = () => {
       message.error(text);
     } finally {
       setLoading(false);
-      setSampleProgress(0);
     }
   };
 
@@ -169,7 +181,8 @@ const Register: React.FC = () => {
       <Card>
         <Form<RegisterValues> layout="vertical" onFinish={onFinish} requiredMark="optional">
           <Row gutter={24}>
-            <Col xs={24}>
+            {/* 左侧：面部特征采集 */}
+            <Col xs={24} lg={16}>
               <Form.Item label="面部特征采集">
                 <div style={{ ...previewBox, border: `2px dashed ${token.colorBorder}`, height: 400, aspectRatio: 'auto' }}>
                   <video
@@ -190,15 +203,12 @@ const Register: React.FC = () => {
                 </div>
               </Form.Item>
             </Col>
-          </Row>
 
-          <Row gutter={24}>
-            <Col xs={24} md={12}>
+            {/* 右侧：输入字段 */}
+            <Col xs={24} lg={8}>
               <Form.Item label="学号 (User ID)" name="userId" rules={[{ required: true, message: '请输入学号' }]}>
                 <Input placeholder="例如: 2026001" allowClear />
               </Form.Item>
-            </Col>
-            <Col xs={24} md={12}>
               <Form.Item label="姓名 (Full Name)" name="name" rules={[{ required: true, message: '请输入姓名' }]}>
                 <Input placeholder="例如: 张三" allowClear />
               </Form.Item>
@@ -207,7 +217,7 @@ const Register: React.FC = () => {
 
           <Row gutter={24}>
             <Col xs={24}>
-              <Form.Item label={`采集样本 (已采集 ${sampleProgress}/${REQUIRED_SAMPLE_COUNT})`}>
+              <Form.Item label={`采集样本 (已采集 ${snapshots.length}/${REQUIRED_SAMPLE_COUNT})`}>
                 <Row gutter={8}>
                   {[0, 1, 2].map((i) => (
                     <Col key={i} span={8}>
@@ -225,9 +235,7 @@ const Register: React.FC = () => {
                 </Row>
               </Form.Item>
               <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 16 }}>
-                {loading
-                  ? `正在采集第 ${Math.max(1, sampleProgress)} / ${REQUIRED_SAMPLE_COUNT} 张，请轻微调整角度`
-                  : `本次注册将连续采集 ${REQUIRED_SAMPLE_COUNT} 张样本`}
+                请分别采集正脸、轻微左偏、轻微右偏。系统只保存检测到单张人脸的有效样本。
               </Typography.Text>
             </Col>
           </Row>
@@ -245,11 +253,22 @@ const Register: React.FC = () => {
                 paddingTop: 24,
               }}
             >
-              <Button icon={<Camera size={16} />} onClick={startCamera}>
+              <Button icon={<Camera size={16} />} onClick={startCamera} disabled={cameraOn}>
                 启动摄像头
               </Button>
-              <Button type="primary" htmlType="submit" icon={<Camera size={16} />} loading={loading} disabled={!cameraOn}>
-                连续采集 3 张并注册
+              <Button
+                icon={<Camera size={16} />}
+                onClick={() => void captureSample()}
+                loading={capturing}
+                disabled={!cameraOn || snapshots.length >= REQUIRED_SAMPLE_COUNT || loading}
+              >
+                采集当前样本
+              </Button>
+              <Button icon={<RotateCcw size={16} />} onClick={resetSamples} disabled={loading || capturing || snapshots.length === 0}>
+                重拍样本
+              </Button>
+              <Button type="primary" htmlType="submit" icon={<Camera size={16} />} loading={loading} disabled={snapshots.length !== REQUIRED_SAMPLE_COUNT || capturing}>
+                提交注册
               </Button>
             </div>
           </Form.Item>

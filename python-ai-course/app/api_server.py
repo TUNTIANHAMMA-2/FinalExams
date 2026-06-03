@@ -76,6 +76,40 @@ def register_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def validate_face_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Validate whether one browser frame is suitable as a registration sample."""
+    import cv2
+
+    from app import face_detect
+
+    image_data = str(payload.get("image_data", "")).strip()
+    if not image_data:
+        raise ValueError("image_data 不能为空")
+
+    image = _decode_image_data(image_data)
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    gray = cv2.equalizeHist(gray)
+    locations = face_detect.locate_faces(gray)
+    face_count = len(locations)
+
+    if face_count == 1:
+        message = "检测到 1 张人脸，可以作为训练样本"
+        valid = True
+    elif face_count == 0:
+        message = "未检测到人脸，请调整位置后重新采集"
+        valid = False
+    else:
+        message = "检测到多张人脸，请确保画面中只有本人"
+        valid = False
+
+    return {
+        "status": "success" if valid else "invalid",
+        "valid": valid,
+        "face_count": face_count,
+        "message": message,
+    }
+
+
 def recognize_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Recognize a browser image frame and optionally write attendance."""
     import cv2
@@ -238,6 +272,8 @@ class ApiRequestHandler(BaseHTTPRequestHandler):
             payload = self._read_json()
             if path == "/api/register":
                 self._send_json(200, register_from_payload(payload))
+            elif path == "/api/validate-face":
+                self._send_json(200, validate_face_from_payload(payload))
             elif path == "/api/recognize":
                 self._send_json(200, recognize_from_payload(payload))
             else:
