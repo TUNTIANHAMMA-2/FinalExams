@@ -120,7 +120,7 @@ const Records: React.FC = () => {
 
   return (
     <Space direction="vertical" size={24} style={{ width: '100%' }}>
-      <div>
+      <div style={{ textAlign: 'left' }}>
         <Typography.Title level={3} style={{ margin: 0 }}>
           签到记录
         </Typography.Title>

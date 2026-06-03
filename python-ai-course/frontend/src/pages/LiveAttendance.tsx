@@ -227,8 +227,8 @@ const LiveAttendance: React.FC = () => {
       <canvas ref={asciiCanvasRef} style={{ display: 'none' }} />
       <canvas ref={captureCanvasRef} style={{ display: 'none' }} />
 
-      <Flex justify="space-between" align="center" wrap gap={16}>
-        <div>
+      <Flex justify="space-between" align="flex-start" wrap gap={16}>
+        <div style={{ textAlign: 'left' }}>
           <Typography.Title level={3} style={{ margin: 0 }}>
             实时签到
           </Typography.Title>

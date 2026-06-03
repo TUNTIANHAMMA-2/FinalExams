@@ -63,11 +63,10 @@ const Layout: React.FC = () => {
   );
 
   return (
-    <AntLayout style={{ minHeight: '100vh' }}>
+    <AntLayout style={{ height: '100vh', overflow: 'hidden' }}>
       <Header
         style={{
-          position: 'sticky',
-          top: 0,
+          position: 'relative',
           zIndex: 100,
           display: 'flex',
           alignItems: 'center',
@@ -134,7 +133,7 @@ const Layout: React.FC = () => {
         </div>
       </Header>
 
-      <AntLayout style={{ width: '100%', maxWidth: 1920, margin: '0 auto' }}>
+      <AntLayout style={{ width: '100%', maxWidth: 1920, margin: '0 auto', overflow: 'hidden' }}>
         {isDesktop && (
           <Sider
             width={248}
@@ -144,18 +143,18 @@ const Layout: React.FC = () => {
             }}
           >
             <div style={{ padding: '20px 12px' }}>
-              <Typography.Text
-                type="secondary"
-                style={{ fontSize: 12, letterSpacing: '0.08em', paddingInlineStart: 12 }}
-              >
-                MENU
-              </Typography.Text>
               <div style={{ marginTop: 12 }}>{menu}</div>
             </div>
           </Sider>
         )}
 
-        <Content style={{ padding: 'clamp(16px, 2.5vw, 32px)', minWidth: 0 }}>
+        <Content
+          style={{
+            padding: 'clamp(16px, 2.5vw, 32px)',
+            overflowY: 'auto',
+            flex: 1,
+          }}
+        >
           <Outlet />
         </Content>
       </AntLayout>

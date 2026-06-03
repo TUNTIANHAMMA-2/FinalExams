@@ -25,7 +25,7 @@ const Register: React.FC = () => {
 
   const [cameraOn, setCameraOn] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [snapshot, setSnapshot] = useState('');
+  const [snapshots, setSnapshots] = useState<string[]>([]);
   const [sampleProgress, setSampleProgress] = useState(0);
   const [result, setResult] = useState<SubmitResult | null>(null);
 
@@ -123,7 +123,7 @@ const Register: React.FC = () => {
         }
         const imageData = captureFrame();
         imageDataList.push(imageData);
-        setSnapshot(imageData);
+        setSnapshots((prev) => [...prev, imageData]);
         setSampleProgress(index + 1);
       }
 
@@ -159,7 +159,7 @@ const Register: React.FC = () => {
     <Space direction="vertical" size={24} style={{ width: '100%' }}>
       <canvas ref={canvasRef} style={{ display: 'none' }} />
 
-      <div>
+      <div style={{ textAlign: 'left' }}>
         <Typography.Title level={3} style={{ margin: 0 }}>
           人脸注册
         </Typography.Title>
@@ -169,22 +169,9 @@ const Register: React.FC = () => {
       <Card>
         <Form<RegisterValues> layout="vertical" onFinish={onFinish} requiredMark="optional">
           <Row gutter={24}>
-            <Col xs={24} md={12}>
-              <Form.Item label="学号 (User ID)" name="userId" rules={[{ required: true, message: '请输入学号' }]}>
-                <Input placeholder="例如: 2026001" allowClear />
-              </Form.Item>
-            </Col>
-            <Col xs={24} md={12}>
-              <Form.Item label="姓名 (Full Name)" name="name" rules={[{ required: true, message: '请输入姓名' }]}>
-                <Input placeholder="例如: 张三" allowClear />
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Row gutter={24}>
-            <Col xs={24} md={16}>
+            <Col xs={24}>
               <Form.Item label="面部特征采集">
-                <div style={{ ...previewBox, border: `2px dashed ${token.colorBorder}` }}>
+                <div style={{ ...previewBox, border: `2px dashed ${token.colorBorder}`, height: 400, aspectRatio: 'auto' }}>
                   <video
                     ref={videoRef}
                     playsInline
@@ -203,19 +190,41 @@ const Register: React.FC = () => {
                 </div>
               </Form.Item>
             </Col>
-            <Col xs={24} md={8}>
-              <Form.Item label="最近采集">
-                <div style={{ ...previewBox, border: `1px solid ${token.colorBorderSecondary}` }}>
-                  {snapshot ? (
-                    <img src={snapshot} alt="最近采集" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                  ) : (
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                      暂无
-                    </Typography.Text>
-                  )}
-                </div>
+          </Row>
+
+          <Row gutter={24}>
+            <Col xs={24} md={12}>
+              <Form.Item label="学号 (User ID)" name="userId" rules={[{ required: true, message: '请输入学号' }]}>
+                <Input placeholder="例如: 2026001" allowClear />
               </Form.Item>
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item label="姓名 (Full Name)" name="name" rules={[{ required: true, message: '请输入姓名' }]}>
+                <Input placeholder="例如: 张三" allowClear />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={24}>
+            <Col xs={24}>
+              <Form.Item label={`采集样本 (已采集 ${sampleProgress}/${REQUIRED_SAMPLE_COUNT})`}>
+                <Row gutter={8}>
+                  {[0, 1, 2].map((i) => (
+                    <Col key={i} span={8}>
+                      <div style={{ ...previewBox, border: `1px solid ${token.colorBorderSecondary}`, minHeight: 120 }}>
+                        {snapshots[i] ? (
+                          <img src={snapshots[i]} alt={`样本${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                        ) : (
+                          <Typography.Text type="secondary" style={{ fontSize: 14 }}>
+                            {i + 1}
+                          </Typography.Text>
+                        )}
+                      </div>
+                    </Col>
+                  ))}
+                </Row>
+              </Form.Item>
+              <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 16 }}>
                 {loading
                   ? `正在采集第 ${Math.max(1, sampleProgress)} / ${REQUIRED_SAMPLE_COUNT} 张，请轻微调整角度`
                   : `本次注册将连续采集 ${REQUIRED_SAMPLE_COUNT} 张样本`}

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Button, Card, Col, Empty, Flex, Progress, Row, Space, Statistic, Typography, theme } from 'antd';
-import { AlertTriangle, RefreshCw, UserX, Users } from 'lucide-react';
+import { Button, Card, Col, Empty, Flex, Progress, Row, Space, Statistic, Tooltip, Typography, theme } from 'antd';
+import { AlertTriangle, Info, RefreshCw, UserX, Users } from 'lucide-react';
 import type { StatsResponse } from '../api';
 import { fetchStats } from '../api';
 
@@ -79,8 +79,8 @@ const Stats: React.FC = () => {
 
   return (
     <Space direction="vertical" size={24} style={{ width: '100%' }}>
-      <Flex justify="space-between" align="center" wrap gap={16}>
-        <div>
+      <Flex justify="space-between" align="flex-start" wrap gap={16}>
+        <div style={{ textAlign: 'left' }}>
           <Typography.Title level={3} style={{ margin: 0 }}>
             数据分析
           </Typography.Title>
@@ -147,16 +147,20 @@ const Stats: React.FC = () => {
         </Col>
         <Col xs={24} md={8}>
           <Card>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                识别成功率
+              </Typography.Text>
+              <Tooltip title="计算公式：(签到成功 + 重复签到 + 已识别) / (签到成功 + 重复签到 + 已识别 + 未知人脸)，排除未检测到人脸的空帧。">
+                <Info size={14} style={{ color: token.colorTextSecondary, cursor: 'pointer' }} />
+              </Tooltip>
+            </div>
             <Statistic
-              title="识别成功率"
               value={stats.recognition_success_rate * 100}
               precision={1}
               suffix="%"
               valueStyle={{ fontSize: 28, fontWeight: 700, color: token.colorPrimary }}
             />
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              success + duplicate + recognized / success + duplicate + recognized + unknown，不包含 no_face 空帧。
-            </Typography.Text>
           </Card>
         </Col>
       </Row>
@@ -172,15 +176,24 @@ const Stats: React.FC = () => {
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无识别事件" />
         ) : (
           <Space direction="vertical" size={14} style={{ width: '100%' }}>
-            {Object.entries(stats.event_counts).map(([eventType, count]) => (
-              <div key={eventType}>
-                <Flex justify="space-between" style={{ marginBottom: 4 }}>
-                  <Typography.Text>{eventType}</Typography.Text>
-                  <Typography.Text strong>{count}</Typography.Text>
-                </Flex>
-                <Progress percent={Math.round((count / Math.max(1, stats.event_total)) * 100)} />
-              </div>
-            ))}
+            {Object.entries(stats.event_counts).map(([eventType, count]) => {
+              const labelMap: Record<string, string> = {
+                recognized: '用户识别',
+                duplicate: '重复签到',
+                unknown: '陌生人',
+                no_model: '未注册',
+                no_face: '未检测到人脸',
+              };
+              return (
+                <div key={eventType}>
+                  <Flex justify="space-between" style={{ marginBottom: 4 }}>
+                    <Typography.Text>{labelMap[eventType] || eventType}</Typography.Text>
+                    <Typography.Text strong>{count}</Typography.Text>
+                  </Flex>
+                  <Progress percent={Math.round((count / Math.max(1, stats.event_total)) * 100)} />
+                </div>
+              );
+            })}
           </Space>
         )}
       </Card>
@@ -202,7 +215,7 @@ const Stats: React.FC = () => {
           </Space>
         )}
         <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 20 }}>
-          TOTAL_RECORDS: {stats.total_records}
+          总记录数: {stats.total_records}
         </Typography.Text>
       </Card>
     </Space>
