@@ -82,6 +82,25 @@
 - 用户签到排行
 - 签到趋势图预留位
 
+### 1.5 智能分析页
+
+核心区域：
+
+- 生成演示班级数据按钮
+- 训练学生风险模型按钮
+- 刷新分析按钮
+- 模型状态、学生数、高风险人数、训练样本数
+- 学生风险预测表格
+- 风险等级分布
+- 学生状态评估报告
+
+交互流程：
+
+1. 点击生成演示数据，后端写入学生、成绩、考勤事件和训练样本。
+2. 后端使用训练样本训练决策树分类模型并保存模型文件。
+3. 前端刷新分析接口，读取每名学生的风险等级、风险分值和报告文本。
+4. 用户点击表格中的学生，右侧展示该学生的特征明细和干预建议。
+
 ## 2. 前后端接口草案
 
 ### 2.1 注册接口
@@ -181,6 +200,48 @@ GET /api/stats
   },
   "attendance_rate": 0.8,
   "recognition_success_rate": 0.8333
+}
+```
+
+### 2.5 智能分析接口
+
+```text
+POST /api/student-analysis/demo-data
+POST /api/student-analysis/train
+GET /api/student-analysis
+```
+
+分析接口返回数据：
+
+```json
+{
+  "model_ready": true,
+  "student_count": 5,
+  "training_samples": 85,
+  "risk_counts": {
+    "低风险": 1,
+    "中风险": 2,
+    "高风险": 2
+  },
+  "students": [
+    {
+      "user_id": "2026003",
+      "name": "王五",
+      "risk_level": "高风险",
+      "risk_score": 100,
+      "confidence": 1,
+      "features": {
+        "attendance_rate_30d": 0.6667,
+        "late_count_7d": 4,
+        "absent_count_30d": 10,
+        "duplicate_count_30d": 2,
+        "avg_score": 70.5,
+        "score_delta": -17
+      },
+      "summary": "王五近30天出勤率为66.7%，近7天迟到4次，最近一次成绩变化为-17.0分，系统评估为高风险。",
+      "suggestion": "建议老师尽快进行学习状态沟通，并重点关注到课情况和近期成绩变化。"
+    }
+  ]
 }
 ```
 

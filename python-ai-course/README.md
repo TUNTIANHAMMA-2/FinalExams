@@ -1,6 +1,6 @@
 # ASCII 风格人脸识别签到系统
 
-一个面向课堂签到场景的 Python MVP 项目，使用 OpenCV 完成人脸检测与摄像头采集，结合 LBPH 人脸识别模型实现身份识别，并提供 ASCII 风格实时预览、签到记录保存和基础统计能力。
+一个面向课堂签到场景的 Python MVP 项目，使用 OpenCV 完成人脸检测与摄像头采集，结合 LBPH 人脸识别模型实现身份识别，并提供 ASCII 风格实时预览、签到记录保存、基础统计和机器学习学生风险分析能力。
 
 ## 当前范围
 
@@ -12,6 +12,7 @@
 - 签到记录保存
 - 识别事件日志
 - 出勤率、识别成功率等基础统计
+- 基于决策树模型的学生状态评估报告
 
 ## 目录结构
 
@@ -28,10 +29,12 @@ app/
   ascii_render.py
   storage.py
   analytics.py
+  student_analysis.py
 data/
   faces/
   encodings/
   exports/
+  models/
   attendance.db
 docs/
 ```
@@ -45,7 +48,37 @@ docs/
 - `event_log` 表是识别事件表，保存 `success`、`duplicate`、`recognized`、`unknown`、`no_model` 等识别过程事件，用于分析识别成功率、重复打卡次数和异常原因。
 - `no_face` 表示摄像头画面中没有检测到人脸，是正常空帧状态，不写入事件日志，避免长时间运行时产生大量无意义日志。
 - `event_id` 用于关联一次成功写入的签到结果与对应识别事件，便于从业务结果反查识别过程。
+- `students` 表保存参与分析的学生基础信息。
+- `grades` 表保存学生历史成绩，当前 MVP 使用“期中考试”和“阶段测验”两次成绩计算平均分与成绩变化。
+- `ml_training_samples` 表保存机器学习训练样本，每条样本包含出勤率、迟到次数、缺勤次数、重复签到次数、平均成绩、成绩变化和风险标签。
 - `data/exports/attendance_records.csv` 和 `data/exports/recognition_events.csv` 是从 SQLite 导出的 CSV 文件，不作为主存储。
+
+## 机器学习智能分析
+
+项目新增“智能分析”功能，作为课程要求中的第二个 AI 功能点。由于当前没有真实班级长期数据，系统提供可重复生成的演示班级数据，用于演示完整机器学习流程；真实部署时可以把演示数据替换成真实学生考勤和成绩数据后重新训练。
+
+模型流程：
+
+```text
+演示班级数据/真实业务数据
+-> 特征提取
+-> 训练样本表 ml_training_samples
+-> scikit-learn DecisionTreeClassifier
+-> data/models/student_risk_model.joblib
+-> 学生风险等级预测
+-> 学生状态评估报告
+```
+
+当前模型使用 6 个特征：
+
+- `attendance_rate_30d`：近 30 天出勤率
+- `late_count_7d`：近 7 天迟到次数
+- `absent_count_30d`：近 30 天缺勤天数
+- `duplicate_count_30d`：近 30 天重复签到事件数
+- `avg_score`：历史平均成绩
+- `score_delta`：最近一次成绩相对上一次成绩的变化
+
+前端“智能分析”页面提供三个动作：生成演示数据、训练模型、刷新分析。输出结果包括风险分布、学生风险表格和单个学生状态评估报告。
 
 ## 安装依赖
 
@@ -90,6 +123,7 @@ npm run dev
 2. 进入 `Live Stream` 页面，点击 `Start`，浏览器会调用摄像头并定时请求 Python API 做人脸识别签到。
 3. 进入 `Records` 页面查看真实签到记录。
 4. 进入 `Analytics` 页面查看真实统计。
+5. 进入 `智能分析` 页面，点击 `生成演示数据`，再查看决策树模型输出的学生风险报告。
 
 统计口径：出勤率基于成功签到人数和注册用户数计算；识别成功率基于 `success + duplicate + recognized` 与 `unknown` 计算，排除 `no_face` 空帧。
 

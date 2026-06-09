@@ -6,14 +6,16 @@ from app import config, storage
 
 
 def _safe_rate(numerator: int, denominator: int) -> float:
+    """安全计算比例，避免分母为 0，并把结果限制在 0 到 1 之间。"""
     if denominator <= 0:
         return 0.0
     return round(min(numerator / denominator, 1.0), 4)
 
 
 def summarize_attendance() -> dict[str, object]:
-    rows = storage.read_attendance()
-    events = storage.read_events()
+    """汇总签到和识别事件，生成前端统计页面使用的出勤率与识别成功率。"""
+    rows = [row for row in storage.read_attendance() if not row.get("event_id", "").startswith("demo-")]
+    events = [event for event in storage.read_events() if not event.get("event_id", "").startswith("demo-")]
     by_status = Counter(row["status"] for row in rows)
     by_event_type = Counter(event["event_type"] for event in events)
     registered_users = storage.load_json(config.LABELS_FILE, {"users": {}}).get("users", {})

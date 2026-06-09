@@ -15,11 +15,12 @@ DATA_URL_PREFIX = re.compile(r"^data:image/[a-zA-Z0-9.+-]+;base64,")
 
 
 def _json_error(message: str, status: str = "error") -> dict[str, str]:
+    """统一生成前端可展示的 JSON 错误结构。"""
     return {"status": status, "message": message}
 
 
 def _decode_image_data(image_data: str):
-    """Decode a browser data URL or raw base64 string into an OpenCV BGR image."""
+    """把浏览器上传的 data URL 或 base64 图片解码为 OpenCV BGR 图像矩阵。"""
     import cv2
     import numpy as np
 
@@ -37,7 +38,7 @@ def _decode_image_data(image_data: str):
 
 
 def _write_image_data(image_data: str, output_path: Path) -> None:
-    """Persist a browser image data URL for the OpenCV registration pipeline."""
+    """把浏览器采集的人脸图片保存为文件，供注册训练流程读取。"""
     import cv2
 
     image = _decode_image_data(image_data)
@@ -47,7 +48,7 @@ def _write_image_data(image_data: str, output_path: Path) -> None:
 
 
 def register_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    """Register a face from JSON payload sent by the browser."""
+    """处理前端注册请求：保存多张样本图片，并触发 LBPH 模型重新训练。"""
     user_id = str(payload.get("user_id", "")).strip()
     name = str(payload.get("name", "")).strip()
     raw_image_list = payload.get("image_data_list")
@@ -77,7 +78,7 @@ def register_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def validate_face_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    """Validate whether one browser frame is suitable as a registration sample."""
+    """校验一帧注册样本是否恰好包含一张人脸。"""
     import cv2
 
     from app import face_detect
@@ -87,6 +88,7 @@ def validate_face_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("image_data 不能为空")
 
     image = _decode_image_data(image_data)
+    # 前端传来的彩色图像先转灰度并均衡化，再送入 Haar 人脸检测器。
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     gray = cv2.equalizeHist(gray)
     locations = face_detect.locate_faces(gray)
@@ -111,7 +113,7 @@ def validate_face_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def recognize_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    """Recognize a browser image frame and optionally write attendance."""
+    """处理实时识别请求：检测人脸、调用 LBPH 匹配，并按结果写入签到或事件日志。"""
     import cv2
 
     from app import face_detect, face_recognize
@@ -122,6 +124,7 @@ def recognize_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("image_data 不能为空")
 
     image = _decode_image_data(image_data)
+    # 识别阶段和注册阶段保持同样的灰度化、均衡化流程，保证输入分布一致。
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     gray = cv2.equalizeHist(gray)
     locations = face_detect.locate_faces(gray)
@@ -207,7 +210,10 @@ def recognize_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 class ApiRequestHandler(BaseHTTPRequestHandler):
+    """为 React 前端提供本地 HTTP API 的请求处理器。"""
+
     def _send_json(self, status_code: int, payload: dict[str, Any] | list[Any]) -> None:
+        """发送 JSON 响应，并允许前端开发服务器跨域访问。"""
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status_code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -219,6 +225,7 @@ class ApiRequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _send_csv_file(self, path: Path, filename: str) -> None:
+        """发送 CSV 文件下载响应。"""
         body = path.read_bytes()
         self.send_response(200)
         self.send_header("Content-Type", "text/csv; charset=utf-8")
@@ -231,6 +238,7 @@ class ApiRequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _read_json(self) -> dict[str, Any]:
+        """读取并解析 JSON 请求体，同时限制最大上传体积。"""
         content_length = int(self.headers.get("Content-Length", "0"))
         if content_length <= 0:
             return {}
@@ -240,9 +248,11 @@ class ApiRequestHandler(BaseHTTPRequestHandler):
         return json.loads(raw_body.decode("utf-8"))
 
     def do_OPTIONS(self) -> None:
+        """响应浏览器 CORS 预检请求。"""
         self._send_json(200, {"status": "ok"})
 
     def do_GET(self) -> None:
+        """处理查询类接口，如签到记录、事件日志、统计结果和学生分析。"""
         path = urlparse(self.path).path
         try:
             if path == "/api/health":
@@ -257,6 +267,10 @@ class ApiRequestHandler(BaseHTTPRequestHandler):
                 self._send_csv_file(storage.export_events_csv(), "recognition_events.csv")
             elif path == "/api/stats":
                 self._send_json(200, analytics.summarize_attendance())
+            elif path == "/api/student-analysis":
+                from app import student_analysis
+
+                self._send_json(200, student_analysis.analyze_students())
             elif path == "/api/users":
                 from app import face_recognize
 
@@ -267,6 +281,7 @@ class ApiRequestHandler(BaseHTTPRequestHandler):
             self._send_json(500, _json_error(str(exc)))
 
     def do_POST(self) -> None:
+        """处理会改变状态的接口，如注册、人脸识别、生成演示数据和训练模型。"""
         path = urlparse(self.path).path
         try:
             payload = self._read_json()
@@ -276,6 +291,32 @@ class ApiRequestHandler(BaseHTTPRequestHandler):
                 self._send_json(200, validate_face_from_payload(payload))
             elif path == "/api/recognize":
                 self._send_json(200, recognize_from_payload(payload))
+            elif path in ("/api/student-analysis/demo-data", "/api/demo-data"):
+                from app import student_analysis
+
+                generated = student_analysis.generate_demo_data()
+                model = student_analysis.train_model()
+                self._send_json(
+                    200,
+                    {
+                        "status": "success",
+                        "message": "演示班级数据已生成，并已重新训练学生风险模型",
+                        "generated": generated,
+                        "model": model,
+                    },
+                )
+            elif path in ("/api/student-analysis/train", "/api/ml/train"):
+                from app import student_analysis
+
+                model = student_analysis.train_model()
+                self._send_json(
+                    200,
+                    {
+                        "status": "success",
+                        "message": "学生风险模型训练完成",
+                        "model": model,
+                    },
+                )
             else:
                 self._send_json(404, _json_error("接口不存在", "not_found"))
         except ValueError as exc:
@@ -285,7 +326,7 @@ class ApiRequestHandler(BaseHTTPRequestHandler):
 
 
 def run_server(host: str, port: int) -> None:
-    """Start the local API server used by the React frontend."""
+    """启动供 React 前端调用的本地 API 服务。"""
     storage.ensure_data_dirs()
     server = ThreadingHTTPServer((host, port), ApiRequestHandler)
     print(f"API server running at http://{host}:{port}")

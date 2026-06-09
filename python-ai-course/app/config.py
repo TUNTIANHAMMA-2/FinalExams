@@ -10,6 +10,8 @@ EVENT_LOG_FILE = DATA_DIR / "event_log.csv"
 DATABASE_FILE = DATA_DIR / "attendance.db"
 LABELS_FILE = ENCODINGS_DIR / "labels.json"
 MODEL_FILE = ENCODINGS_DIR / "lbph_model.yml"
+MODELS_DIR = DATA_DIR / "models"
+STUDENT_RISK_MODEL_FILE = MODELS_DIR / "student_risk_model.joblib"
 
 CAMERA_INDEX = 0
 FRAME_WIDTH = 640

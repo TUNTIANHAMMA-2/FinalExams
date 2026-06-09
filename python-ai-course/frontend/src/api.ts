@@ -106,6 +106,58 @@ export type StatsResponse = {
   recognition_success_rate: number;
 };
 
+export type RiskFeatures = {
+  attendance_rate_30d: number;
+  late_count_7d: number;
+  absent_count_30d: number;
+  duplicate_count_30d: number;
+  avg_score: number;
+  score_delta: number;
+};
+
+export type StudentRiskReport = {
+  user_id: string;
+  name: string;
+  class_name: string;
+  features: RiskFeatures;
+  risk_label: number;
+  risk_level: string;
+  risk_score: number;
+  confidence: number;
+  summary: string;
+  suggestion: string;
+};
+
+export type StudentAnalysisResponse = {
+  model_ready: boolean;
+  student_count: number;
+  training_samples: number;
+  features: string[];
+  risk_counts: Record<string, number>;
+  students: StudentRiskReport[];
+};
+
+export type TrainingResponse = {
+  status: string;
+  message: string;
+  model: {
+    training_samples: number;
+    features: string[];
+    label_counts: Record<string, number>;
+    model_path: string;
+  };
+};
+
+export type DemoDataResponse = TrainingResponse & {
+  generated: {
+    students: number;
+    grades: number;
+    attendance_records: number;
+    recognition_events: number;
+    training_samples: number;
+  };
+};
+
 async function requestJson<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
@@ -175,6 +227,43 @@ function normalizeStats(payload: Partial<StatsResponse> | null | undefined): Sta
   };
 }
 
+function normalizeRiskFeatures(payload: Partial<RiskFeatures> | null | undefined): RiskFeatures {
+  return {
+    attendance_rate_30d: toNumber(payload?.attendance_rate_30d),
+    late_count_7d: toNumber(payload?.late_count_7d),
+    absent_count_30d: toNumber(payload?.absent_count_30d),
+    duplicate_count_30d: toNumber(payload?.duplicate_count_30d),
+    avg_score: toNumber(payload?.avg_score),
+    score_delta: toNumber(payload?.score_delta),
+  };
+}
+
+function normalizeStudentAnalysis(payload: Partial<StudentAnalysisResponse> | null | undefined): StudentAnalysisResponse {
+  const students = Array.isArray(payload?.students)
+    ? payload.students.map((student) => ({
+      user_id: toStringValue(student.user_id),
+      name: toStringValue(student.name),
+      class_name: toStringValue(student.class_name),
+      features: normalizeRiskFeatures(student.features),
+      risk_label: toNumber(student.risk_label),
+      risk_level: toStringValue(student.risk_level) || '未知',
+      risk_score: toNumber(student.risk_score),
+      confidence: toNumber(student.confidence),
+      summary: toStringValue(student.summary),
+      suggestion: toStringValue(student.suggestion),
+    }))
+    : [];
+
+  return {
+    model_ready: Boolean(payload?.model_ready),
+    student_count: toNumber(payload?.student_count, students.length),
+    training_samples: toNumber(payload?.training_samples),
+    features: Array.isArray(payload?.features) ? payload.features.map((feature) => String(feature)) : [],
+    risk_counts: numberMap(payload?.risk_counts),
+    students,
+  };
+}
+
 export function registerFace(userId: string, name: string, imageData: string | string[]) {
   const imageDataList = Array.isArray(imageData) ? imageData : [imageData];
   return requestJson<{ status: string; message: string; sample_count?: number }>("/api/register", {
@@ -219,6 +308,25 @@ export async function fetchEvents() {
 export async function fetchStats() {
   const response = await requestJson<Partial<StatsResponse>>("/api/stats");
   return normalizeStats(response);
+}
+
+export async function fetchStudentAnalysis() {
+  const response = await requestJson<Partial<StudentAnalysisResponse>>("/api/student-analysis");
+  return normalizeStudentAnalysis(response);
+}
+
+export function generateStudentDemoData() {
+  return requestJson<DemoDataResponse>("/api/student-analysis/demo-data", {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export function trainStudentRiskModel() {
+  return requestJson<TrainingResponse>("/api/student-analysis/train", {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
 }
 
 export function fetchUsers() {

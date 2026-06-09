@@ -1,16 +1,30 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Button, Card, Empty, Flex, Input, Space, Table, Tabs, Tag, Typography, type TableColumnsType } from 'antd';
+import { Alert, Button, Card, Flex, Input, Space, Table, Tabs, Tag, Typography, type TableColumnsType } from 'antd';
 import { Download, RefreshCw, Search } from 'lucide-react';
 import type { AttendanceRecord, RecognitionEvent } from '../api';
 import { exportAttendanceCsv, exportEventsCsv, fetchEvents, fetchRecords } from '../api';
+import PageHeader from '../components/PageHeader';
 
 function statusTag(status: string) {
-  if (status === 'success') return <Tag color="success">签到成功</Tag>;
-  if (status === 'duplicate') return <Tag color="warning">重复签到</Tag>;
-  if (status === 'recognized') return <Tag color="processing">识别预览</Tag>;
-  if (status === 'unknown') return <Tag color="error">未知人脸</Tag>;
-  if (status === 'no_model') return <Tag color="default">模型未训练</Tag>;
-  return <Tag color="default">{status}</Tag>;
+  if (status === 'recognized') {
+    return (
+      <Tag bordered={false} style={{ color: 'var(--accent-ink)', background: 'var(--accent-soft)', borderRadius: 0 }}>
+        识别预览
+      </Tag>
+    );
+  }
+  const styles: Record<string, { color: string; label: string }> = {
+    success: { color: 'green', label: '签到成功' },
+    duplicate: { color: 'orange', label: '重复签到' },
+    unknown: { color: 'red', label: '未知人脸' },
+    no_model: { color: 'default', label: '模型未训练' },
+  };
+  const config = styles[status] || { color: 'default', label: status };
+  return (
+    <Tag color={config.color} bordered={false} style={{ borderRadius: 0 }}>
+      {config.label}
+    </Tag>
+  );
 }
 
 const Records: React.FC = () => {
@@ -77,9 +91,10 @@ const Records: React.FC = () => {
       key: 'date',
       sorter: (a, b) => a.date.localeCompare(b.date),
       defaultSortOrder: 'descend',
+      render: (value: string) => <span className="mono">{value}</span>,
     },
-    { title: '时间', dataIndex: 'time', key: 'time', sorter: (a, b) => a.time.localeCompare(b.time) },
-    { title: '学号', dataIndex: 'user_id', key: 'user_id' },
+    { title: '时间', dataIndex: 'time', key: 'time', render: (value: string) => <span className="mono">{value}</span> },
+    { title: '学号', dataIndex: 'user_id', key: 'user_id', render: (value: string) => <span className="mono">{value}</span> },
     {
       title: '姓名',
       dataIndex: 'name',
@@ -91,15 +106,13 @@ const Records: React.FC = () => {
       dataIndex: 'status',
       key: 'status',
       render: (value: string) => statusTag(value),
-      filters: [
-        { text: '签到成功', value: 'success' },
-        { text: '重复签到', value: 'duplicate' },
-        { text: '未识别', value: 'unknown' },
-      ],
-      onFilter: (value, record) => record.status === value,
     },
-    { title: '置信度', dataIndex: 'confidence', key: 'confidence', render: (value: string) => value || '-' },
-    { title: '事件ID', dataIndex: 'event_id', key: 'event_id', render: (value: string) => value || '-' },
+    {
+      title: '置信度',
+      dataIndex: 'confidence',
+      key: 'confidence',
+      render: (value: string) => <span className="mono">{value || '—'}</span>,
+    },
   ];
 
   const eventColumns: TableColumnsType<RecognitionEvent> = [
@@ -109,91 +122,101 @@ const Records: React.FC = () => {
       key: 'timestamp',
       sorter: (a, b) => a.timestamp.localeCompare(b.timestamp),
       defaultSortOrder: 'descend',
+      render: (value: string) => <span className="mono">{value}</span>,
     },
-    { title: '事件', dataIndex: 'event_type', key: 'event_type', render: (value: string) => statusTag(value) },
-    { title: '学号', dataIndex: 'user_id', key: 'user_id', render: (value: string) => value || '-' },
-    { title: '姓名', dataIndex: 'name', key: 'name', render: (value: string) => value || '-' },
-    { title: '置信度', dataIndex: 'confidence', key: 'confidence', render: (value: string) => value || '-' },
-    { title: '人脸数', dataIndex: 'face_count', key: 'face_count' },
-    { title: '说明', dataIndex: 'message', key: 'message', render: (value: string) => value || '-' },
+    { title: '状态', dataIndex: 'event_type', key: 'event_type', render: (value: string) => statusTag(value) },
+    { title: '学号', dataIndex: 'user_id', key: 'user_id', render: (value: string) => <span className="mono">{value}</span> },
+    { title: '姓名', dataIndex: 'name', key: 'name' },
+    { title: '置信度', dataIndex: 'confidence', key: 'confidence', render: (value: string) => <span className="mono">{value}</span> },
+    { title: '说明', dataIndex: 'message', key: 'message', ellipsis: true },
   ];
+
+  const searchBar = (
+    <Flex gap={12} style={{ marginBottom: 16 }}>
+      <Input
+        allowClear
+        placeholder="按姓名或学号筛选…"
+        prefix={<Search size={14} style={{ opacity: 0.4 }} />}
+        value={filterName}
+        onChange={(e) => setFilterName(e.target.value)}
+        style={{ maxWidth: 320 }}
+      />
+    </Flex>
+  );
 
   return (
     <Space direction="vertical" size={24} style={{ width: '100%' }}>
-      <div style={{ textAlign: 'left' }}>
-        <Typography.Title level={3} style={{ margin: 0 }}>
-          签到记录
-        </Typography.Title>
-        <Typography.Text type="secondary">查询与导出历史签到日志数据</Typography.Text>
-      </div>
+      <PageHeader
+        title="数据中心"
+        kicker="Data Center"
+        subtitle="管理并导出历史签到与识别事件日志"
+        actions={
+          <>
+            <Button icon={<RefreshCw size={14} />} onClick={loadRecords} loading={loading}>
+              刷新记录
+            </Button>
+            <Button
+              type="primary"
+              icon={<Download size={14} />}
+              onClick={() => void handleExport('attendance')}
+              loading={exporting}
+            >
+              导出 CSV
+            </Button>
+          </>
+        }
+      />
 
-      <Flex gap={16} wrap align="center" justify="space-between">
-        <Input
-          allowClear
-          placeholder="搜索姓名或学号..."
-          prefix={<Search size={16} />}
-          value={filterName}
-          onChange={(event) => setFilterName(event.target.value)}
-          style={{ flex: '1 1 240px', maxWidth: 360 }}
-        />
-        <Space wrap>
-          <Button icon={<RefreshCw size={16} />} onClick={loadRecords} loading={loading}>
-            刷新
-          </Button>
-          <Button icon={<Download size={16} />} onClick={() => void handleExport('attendance')} loading={exporting}>
-            导出签到 CSV
-          </Button>
-          <Button icon={<Download size={16} />} onClick={() => void handleExport('events')} loading={exporting}>
-            导出事件 CSV
-          </Button>
-        </Space>
-      </Flex>
+      {errorMessage && <Alert type="error" showIcon message={errorMessage} />}
 
-      {errorMessage && (
-        <Typography.Text type="danger">ERROR: {errorMessage}</Typography.Text>
-      )}
-
-      <Card>
+      <Card styles={{ body: { padding: '8px 24px 24px' } }}>
         <Tabs
           items={[
             {
               key: 'attendance',
-              label: `签到记录 (${filteredRecords.length})`,
+              label: `签到成功 (${filteredRecords.length})`,
               children: (
-                <Table<AttendanceRecord>
-                  rowKey={(record, index) => `${record.date}-${record.time}-${record.user_id}-${index}`}
-                  columns={columns}
-                  dataSource={filteredRecords}
-                  loading={loading}
-                  scroll={{ x: 'max-content' }}
-                  pagination={{ pageSize: 10, showSizeChanger: true, responsive: true, hideOnSinglePage: false }}
-                  locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="没有找到匹配的记录" /> }}
-                />
+                <div style={{ marginTop: 16 }}>
+                  {searchBar}
+                  <Table<AttendanceRecord>
+                    rowKey={(record, index) => `${record.user_id}-${index}`}
+                    columns={columns}
+                    dataSource={filteredRecords}
+                    loading={loading}
+                    size="middle"
+                    pagination={{ pageSize: 8, showSizeChanger: false }}
+                    rowClassName={() => 'macos-table-row'}
+                  />
+                </div>
               ),
             },
             {
               key: 'events',
-              label: `识别事件 (${filteredEvents.length})`,
+              label: `识别日志 (${filteredEvents.length})`,
               children: (
-                <Space direction="vertical" size={16} style={{ width: '100%' }}>
-                  {eventApiUnavailable && (
+                <div style={{ marginTop: 16 }}>
+                  {eventApiUnavailable ? (
                     <Alert
                       type="warning"
                       showIcon
-                      message="当前后端还没有 /api/events 接口"
-                      description="签到记录已正常加载。请重启或更新 Python 后端后，识别事件日志会显示在这里。"
+                      message="识别事件接口未启用"
+                      description="后端未提供 /api/events 接口，暂无法展示识别事件日志。"
                     />
+                  ) : (
+                    <>
+                      {searchBar}
+                      <Table<RecognitionEvent>
+                        rowKey={(event) => event.event_id}
+                        columns={eventColumns}
+                        dataSource={filteredEvents}
+                        loading={loading}
+                        size="middle"
+                        pagination={{ pageSize: 8, showSizeChanger: false }}
+                        rowClassName={() => 'macos-table-row'}
+                      />
+                    </>
                   )}
-                  <Table<RecognitionEvent>
-                    rowKey={(event) => event.event_id}
-                    columns={eventColumns}
-                    dataSource={filteredEvents}
-                    loading={loading}
-                    scroll={{ x: 'max-content' }}
-                    pagination={{ pageSize: 10, showSizeChanger: true, responsive: true, hideOnSinglePage: false }}
-                    locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无识别事件" /> }}
-                  />
-                </Space>
+                </div>
               ),
             },
           ]}

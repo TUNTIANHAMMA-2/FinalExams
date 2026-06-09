@@ -13,3 +13,5 @@ data/exports/*
 data/faces/*
 !data/faces/.gitkeep
 !data/encodings/.gitkeep
+data/models/*
+!data/models/.gitkeep

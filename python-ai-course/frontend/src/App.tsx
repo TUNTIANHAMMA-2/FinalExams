@@ -4,6 +4,7 @@ import LiveAttendance from './pages/LiveAttendance';
 import Register from './pages/Register';
 import Records from './pages/Records';
 import Stats from './pages/Stats';
+import StudentAnalysis from './pages/StudentAnalysis';
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
           <Route path="register" element={<Register />} />
           <Route path="records" element={<Records />} />
           <Route path="stats" element={<Stats />} />
+          <Route path="analysis" element={<StudentAnalysis />} />
         </Route>
       </Routes>
     </BrowserRouter>

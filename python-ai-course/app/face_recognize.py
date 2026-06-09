@@ -11,6 +11,8 @@ from app import config, face_detect, storage
 
 @dataclass
 class KnownFace:
+    """一名已注册用户在人脸识别模型中的标签和样本信息。"""
+
     label: int
     user_id: str
     name: str
@@ -19,11 +21,14 @@ class KnownFace:
 
 @dataclass
 class KnownFaceStore:
+    """运行时加载的 LBPH 模型以及标签到用户信息的映射。"""
+
     recognizer: object | None
     faces_by_label: dict[int, KnownFace]
 
 
 def _create_recognizer():
+    """创建 LBPH 人脸识别器，并确认当前 OpenCV 包含 contrib 的 cv2.face 模块。"""
     if not hasattr(cv2, "face") or not hasattr(cv2.face, "LBPHFaceRecognizer_create"):
         raise RuntimeError(
             "当前 OpenCV 缺少 cv2.face 模块。请安装 opencv-contrib-python，而不是 opencv-python。"
@@ -32,22 +37,27 @@ def _create_recognizer():
 
 
 def _sample_dir(user_id: str) -> Path:
+    """返回某个用户归一化人脸样本的保存目录。"""
     return config.FACES_DIR / user_id
 
 
 def _sample_path(user_id: str, index: int = 1) -> Path:
+    """返回某个用户第 index 张归一化人脸样本的文件路径。"""
     return _sample_dir(user_id) / f"sample_{index:03d}.png"
 
 
 def _load_registry() -> dict:
+    """读取标签注册表，用于维护用户编号和 LBPH 整数标签之间的关系。"""
     return storage.load_json(config.LABELS_FILE, {"next_label": 0, "users": {}})
 
 
 def _save_registry(registry: dict) -> None:
+    """保存标签注册表，保证下次启动后仍能把模型标签映射回用户。"""
     storage.save_json(config.LABELS_FILE, registry)
 
 
 def _normalize_face(gray_frame, location):
+    """裁剪人脸区域并统一尺寸、灰度直方图，形成 LBPH 训练和预测使用的样本。"""
     x, y, width, height = location
     face = gray_frame[y : y + height, x : x + width]
     face = cv2.resize(face, config.FACE_IMAGE_SIZE)
@@ -55,6 +65,7 @@ def _normalize_face(gray_frame, location):
 
 
 def _load_gray_image(image_path: str):
+    """读取注册图片并转为均衡化灰度图，减少光照差异对检测结果的影响。"""
     image = cv2.imread(image_path)
     if image is None:
         raise ValueError(f"无法读取图片: {image_path}")
@@ -63,6 +74,7 @@ def _load_gray_image(image_path: str):
 
 
 def _registered_faces(registry: dict) -> list[KnownFace]:
+    """把标签注册表中的 JSON 数据转换成更方便使用的 KnownFace 对象列表。"""
     faces = []
     for payload in registry["users"].values():
         sample_paths = payload.get("sample_paths")
@@ -81,6 +93,7 @@ def _registered_faces(registry: dict) -> list[KnownFace]:
 
 
 def rebuild_model() -> None:
+    """用所有已保存的人脸样本重新训练 LBPH 模型并写入模型文件。"""
     registry = _load_registry()
     faces = _registered_faces(registry)
     samples = []
@@ -101,16 +114,19 @@ def rebuild_model() -> None:
         return
 
     recognizer = _create_recognizer()
+    # LBPH 训练输入是灰度人脸样本，标签是每个用户对应的整数编号。
     recognizer.train(samples, np.array(labels, dtype=np.int32))
     config.MODEL_FILE.parent.mkdir(parents=True, exist_ok=True)
     recognizer.write(str(config.MODEL_FILE))
 
 
 def register_face(user_id: str, name: str, image_path: str) -> None:
+    """兼容单张图片注册的入口，内部复用多样本注册流程。"""
     register_face_samples(user_id, name, [image_path])
 
 
 def register_face_samples(user_id: str, name: str, image_paths: list[str]) -> None:
+    """检测注册图片中的人脸，保存归一化样本，并重新训练 LBPH 识别模型。"""
     storage.ensure_data_dirs()
     if not image_paths:
         raise ValueError("至少需要 1 张人脸样本")
@@ -122,6 +138,7 @@ def register_face_samples(user_id: str, name: str, image_paths: list[str]) -> No
         face_location = face_detect.largest_face(face_locations)
         if face_location is None:
             raise ValueError(f"第 {index} 张图片未检测到可用人脸")
+        # 注册阶段只保存裁剪、缩放、均衡化后的人脸区域，不直接保存整张原图参与训练。
         normalized_faces.append(_normalize_face(gray, face_location))
 
     registry = _load_registry()
@@ -150,6 +167,7 @@ def register_face_samples(user_id: str, name: str, image_paths: list[str]) -> No
 
 
 def load_known_faces() -> KnownFaceStore:
+    """加载已训练的 LBPH 模型和标签映射；没有模型时返回空识别器。"""
     storage.ensure_data_dirs()
     registry = _load_registry()
     faces = _registered_faces(registry)
@@ -163,7 +181,7 @@ def load_known_faces() -> KnownFaceStore:
 
 
 def list_registered_faces() -> list[dict[str, object]]:
-    """Return registered users and whether their normalized sample exists."""
+    """返回已注册用户列表，并标记其归一化样本文件是否存在。"""
     registry = _load_registry()
     users = []
     for face in _registered_faces(registry):
@@ -180,6 +198,7 @@ def list_registered_faces() -> list[dict[str, object]]:
 
 
 def match_faces(gray_frame, face_locations, known_faces: KnownFaceStore, threshold: float):
+    """对当前帧中的每张人脸做 LBPH 预测，并按置信度阈值判断是否匹配。"""
     if not face_locations:
         return []
 
@@ -193,6 +212,7 @@ def match_faces(gray_frame, face_locations, known_faces: KnownFaceStore, thresho
         sample = _normalize_face(gray_frame, location)
         label, confidence = known_faces.recognizer.predict(sample)
         face = known_faces.faces_by_label.get(int(label))
+        # OpenCV LBPH 的 confidence 数值越小表示越相似，因此低于阈值才认为可信。
         matched = face is not None and float(confidence) <= threshold
         results.append(
             {

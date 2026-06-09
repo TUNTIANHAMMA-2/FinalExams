@@ -27,16 +27,19 @@ META_EVENTS_IMPORTED = "legacy_event_log_csv_imported"
 
 
 def ensure_data_dirs() -> None:
+    """确保项目运行所需的数据、样本、模型和导出目录都已存在。"""
     for path in (
         config.DATA_DIR,
         config.FACES_DIR,
         config.ENCODINGS_DIR,
         config.EXPORTS_DIR,
+        config.MODELS_DIR,
     ):
         path.mkdir(parents=True, exist_ok=True)
 
 
 def load_json(path: Path, default: Any) -> Any:
+    """读取 JSON 文件；文件不存在时返回调用方提供的默认值。"""
     if not path.exists():
         return default
     with path.open("r", encoding="utf-8") as file:
@@ -44,12 +47,14 @@ def load_json(path: Path, default: Any) -> Any:
 
 
 def save_json(path: Path, payload: Any) -> None:
+    """以 UTF-8 JSON 格式保存结构化数据，主要用于标签注册表。"""
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as file:
         json.dump(payload, file, ensure_ascii=False, indent=2)
 
 
 def _connect() -> sqlite3.Connection:
+    """创建 SQLite 连接，并让查询结果可以按字段名读取。"""
     ensure_data_dirs()
     connection = sqlite3.connect(config.DATABASE_FILE)
     connection.row_factory = sqlite3.Row
@@ -57,6 +62,7 @@ def _connect() -> sqlite3.Connection:
 
 
 def _init_db(connection: sqlite3.Connection) -> None:
+    """初始化系统用到的 SQLite 表和索引。"""
     connection.executescript(
         """
         CREATE TABLE IF NOT EXISTS attendance (
@@ -86,20 +92,51 @@ def _init_db(connection: sqlite3.Connection) -> None:
             value TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS students (
+            user_id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            class_name TEXT NOT NULL DEFAULT 'AI-1'
+        );
+
+        CREATE TABLE IF NOT EXISTS grades (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            exam_name TEXT NOT NULL,
+            score REAL NOT NULL,
+            exam_date TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS ml_training_samples (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            attendance_rate_30d REAL NOT NULL,
+            late_count_7d INTEGER NOT NULL,
+            absent_count_30d INTEGER NOT NULL,
+            duplicate_count_30d INTEGER NOT NULL,
+            avg_score REAL NOT NULL,
+            score_delta REAL NOT NULL,
+            risk_label INTEGER NOT NULL
+        );
+
         CREATE INDEX IF NOT EXISTS idx_attendance_user_date ON attendance(user_id, date);
         CREATE INDEX IF NOT EXISTS idx_attendance_status ON attendance(status);
         CREATE INDEX IF NOT EXISTS idx_event_log_type ON event_log(event_type);
         CREATE INDEX IF NOT EXISTS idx_event_log_timestamp ON event_log(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_grades_user_date ON grades(user_id, exam_date);
+        CREATE INDEX IF NOT EXISTS idx_ml_training_label ON ml_training_samples(risk_label);
         """
     )
 
 
 def _meta_value(connection: sqlite3.Connection, key: str) -> str | None:
+    """读取存储迁移元信息，用于判断历史 CSV 是否已导入。"""
     row = connection.execute("SELECT value FROM storage_meta WHERE key = ?", (key,)).fetchone()
     return str(row["value"]) if row else None
 
 
 def _set_meta_value(connection: sqlite3.Connection, key: str, value: str) -> None:
+    """写入存储迁移元信息，避免重复导入历史 CSV。"""
     connection.execute(
         "INSERT OR REPLACE INTO storage_meta(key, value) VALUES(?, ?)",
         (key, value),
@@ -107,6 +144,7 @@ def _set_meta_value(connection: sqlite3.Connection, key: str, value: str) -> Non
 
 
 def _ensure_csv_schema(path: Path, fields: list[str]) -> None:
+    """把旧 CSV 文件补齐为当前字段顺序，便于迁移到 SQLite。"""
     if not path.exists():
         return
     with path.open("r", encoding="utf-8", newline="") as file:
@@ -121,6 +159,7 @@ def _ensure_csv_schema(path: Path, fields: list[str]) -> None:
 
 
 def _read_csv_rows(path: Path, fields: list[str]) -> list[dict[str, str]]:
+    """按指定字段读取 CSV 行，不存在时返回空列表。"""
     if not path.exists():
         return []
     _ensure_csv_schema(path, fields)
@@ -129,6 +168,7 @@ def _read_csv_rows(path: Path, fields: list[str]) -> list[dict[str, str]]:
 
 
 def _import_legacy_csv(connection: sqlite3.Connection) -> None:
+    """把早期版本保存的 CSV 签到和事件数据迁移进 SQLite。"""
     if _meta_value(connection, META_ATTENDANCE_IMPORTED) != "1":
         for row in _read_csv_rows(config.ATTENDANCE_FILE, ATTENDANCE_FIELDS):
             connection.execute(
@@ -155,18 +195,45 @@ def _import_legacy_csv(connection: sqlite3.Connection) -> None:
 
 
 def _ensure_db_ready(connection: sqlite3.Connection) -> None:
+    """确保数据库结构已创建，且历史 CSV 数据已完成一次性迁移。"""
     _init_db(connection)
     _import_legacy_csv(connection)
     connection.commit()
 
 
 def initialize_database() -> None:
+    """显式初始化数据库，供测试或启动流程提前创建表结构。"""
     with closing(_connect()) as connection:
         _ensure_db_ready(connection)
         connection.commit()
 
 
+def execute_write(sql: str, parameters: tuple[Any, ...] | dict[str, Any] = ()) -> None:
+    """执行单条写 SQL，供学生分析模块批量准备数据时复用。"""
+    with closing(_connect()) as connection:
+        _ensure_db_ready(connection)
+        connection.execute(sql, parameters)
+        connection.commit()
+
+
+def execute_many(sql: str, rows: list[tuple[Any, ...]] | list[dict[str, Any]]) -> None:
+    """执行批量写 SQL，减少演示数据生成时的重复连接和提交。"""
+    with closing(_connect()) as connection:
+        _ensure_db_ready(connection)
+        connection.executemany(sql, rows)
+        connection.commit()
+
+
+def query(sql: str, parameters: tuple[Any, ...] | dict[str, Any] = ()) -> list[dict[str, Any]]:
+    """执行查询 SQL，并把结果转换成普通字典列表。"""
+    with closing(_connect()) as connection:
+        _ensure_db_ready(connection)
+        rows = connection.execute(sql, parameters).fetchall()
+        return [dict(row) for row in rows]
+
+
 def append_attendance(row: dict[str, str]) -> None:
+    """追加一条真实生效的签到记录。"""
     with closing(_connect()) as connection:
         _ensure_db_ready(connection)
         payload = {field: row.get(field, "") for field in ATTENDANCE_FIELDS}
@@ -181,6 +248,7 @@ def append_attendance(row: dict[str, str]) -> None:
 
 
 def read_attendance() -> list[dict[str, str]]:
+    """按时间倒序读取签到记录，供前端列表和统计分析使用。"""
     with closing(_connect()) as connection:
         _ensure_db_ready(connection)
         rows = connection.execute(
@@ -194,6 +262,7 @@ def read_attendance() -> list[dict[str, str]]:
 
 
 def append_event(row: dict[str, str]) -> None:
+    """写入或更新一条识别事件日志。"""
     with closing(_connect()) as connection:
         _ensure_db_ready(connection)
         payload = {field: row.get(field, "") for field in EVENT_LOG_FIELDS}
@@ -210,6 +279,7 @@ def append_event(row: dict[str, str]) -> None:
 
 
 def read_events() -> list[dict[str, str]]:
+    """按时间倒序读取识别事件，供记录页面和统计分析使用。"""
     with closing(_connect()) as connection:
         _ensure_db_ready(connection)
         rows = connection.execute(
@@ -223,6 +293,7 @@ def read_events() -> list[dict[str, str]]:
 
 
 def write_csv(path: Path, fields: list[str], rows: list[dict[str, str]]) -> None:
+    """把字典列表导出为带表头的 CSV 文件。"""
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8-sig", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=fields)
@@ -231,12 +302,14 @@ def write_csv(path: Path, fields: list[str], rows: list[dict[str, str]]) -> None
 
 
 def export_attendance_csv(path: Path | None = None) -> Path:
+    """导出签到记录 CSV，并返回生成的文件路径。"""
     output_path = path or config.EXPORTS_DIR / "attendance_records.csv"
     write_csv(output_path, ATTENDANCE_FIELDS, read_attendance())
     return output_path
 
 
 def export_events_csv(path: Path | None = None) -> Path:
+    """导出识别事件 CSV，并返回生成的文件路径。"""
     output_path = path or config.EXPORTS_DIR / "recognition_events.csv"
     write_csv(output_path, EVENT_LOG_FIELDS, read_events())
     return output_path

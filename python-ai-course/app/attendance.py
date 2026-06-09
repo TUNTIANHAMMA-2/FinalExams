@@ -11,7 +11,7 @@ def mark_attendance(
     confidence: str = "",
     event_id: str = "",
 ) -> dict[str, str]:
-    """Write a successful attendance record once per user per day."""
+    """写入一次有效签到；同一用户同一天重复识别时只返回 duplicate，不重复入库。"""
     now = datetime.now()
     current_date = now.strftime("%Y-%m-%d")
     current_time = now.strftime("%H:%M:%S")

@@ -6,6 +6,7 @@ from app import analytics, storage
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """构建命令行参数解析器，提供注册、实时签到、统计和 API 服务入口。"""
     parser = argparse.ArgumentParser(description="ASCII 风格人脸识别签到系统")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -28,6 +29,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def handle_register(args) -> None:
+    """命令行注册入口：读取图片并训练/更新人脸识别模型。"""
     from app import face_recognize
 
     face_recognize.register_face(args.user_id, args.name, args.image)
@@ -35,12 +37,14 @@ def handle_register(args) -> None:
 
 
 def handle_stats() -> None:
+    """命令行统计入口：输出签到和识别事件的汇总结果。"""
     summary = analytics.summarize_attendance()
     print("签到统计")
     print(summary)
 
 
 def handle_demo_checkin(args) -> None:
+    """写入一条演示签到和对应识别事件，用于无摄像头时展示记录功能。"""
     from app import attendance, events
 
     event_id = events.next_event_id()
@@ -59,12 +63,14 @@ def handle_demo_checkin(args) -> None:
 
 
 def handle_serve(args) -> None:
+    """启动后端 API 服务，供 React 前端页面调用。"""
     from app import api_server
 
     api_server.run_server(args.host, args.port)
 
 
 def handle_run() -> None:
+    """启动命令行实时签到循环：采集画面、检测人脸、识别身份并写入签到。"""
     import cv2
 
     from app import ascii_render, attendance, camera, config, events, face_detect, face_recognize, preprocess
@@ -140,6 +146,7 @@ def handle_run() -> None:
 
 
 def main() -> None:
+    """程序主入口：初始化数据目录，解析命令并分发到对应处理函数。"""
     storage.ensure_data_dirs()
     parser = build_parser()
     args = parser.parse_args()

@@ -3,6 +3,7 @@ import { Button, Card, Col, Empty, Flex, Progress, Row, Space, Statistic, Toolti
 import { AlertTriangle, Info, RefreshCw, UserX, Users } from 'lucide-react';
 import type { StatsResponse } from '../api';
 import { fetchStats } from '../api';
+import PageHeader from '../components/PageHeader';
 
 const emptyStats: StatsResponse = {
   total_records: 0,
@@ -52,73 +53,68 @@ const Stats: React.FC = () => {
 
   const cards = [
     {
-      label: '今日签到人数',
+      label: '成功签到',
       value: successCount,
-      icon: <Users size={20} />,
-      color: token.colorSuccess,
-      bg: token.colorSuccessBg,
-      note: `有效签到记录 ${successCount} 条，出勤率 ${(stats.attendance_rate * 100).toFixed(1)}%`,
+      icon: <Users size={22} />,
+      note: `出勤率 ${(stats.attendance_rate * 100).toFixed(1)}%`,
     },
     {
-      label: '拦截重复签到',
+      label: '重复拦截',
       value: duplicateCount,
-      icon: <UserX size={20} />,
-      color: token.colorWarning,
-      bg: token.colorWarningBg,
-      note: '自动忽略重复打卡请求',
+      icon: <UserX size={22} />,
+      note: '忽略重复打卡',
     },
     {
-      label: '未知人脸事件',
+      label: '未知人脸',
       value: unknownCount,
-      icon: <AlertTriangle size={20} />,
-      color: token.colorError,
-      bg: token.colorErrorBg,
-      note: `无模型事件 ${noModelCount} 次`,
+      icon: <AlertTriangle size={22} />,
+      note: `异常事件 ${noModelCount} 次`,
     },
   ];
 
   return (
     <Space direction="vertical" size={24} style={{ width: '100%' }}>
-      <Flex justify="space-between" align="flex-start" wrap gap={16}>
-        <div style={{ textAlign: 'left' }}>
-          <Typography.Title level={3} style={{ margin: 0 }}>
-            数据分析
-          </Typography.Title>
-          <Typography.Text type="secondary">系统使用情况与出勤率统计</Typography.Text>
-        </div>
-        <Button icon={<RefreshCw size={16} />} onClick={loadStats} loading={loading}>
-          刷新
-        </Button>
-      </Flex>
+      <PageHeader
+        title="系统分析"
+        kicker="Analytics"
+        subtitle="出勤表现与识别质量的实时洞察"
+        actions={
+          <Button type="primary" icon={<RefreshCw size={14} />} onClick={loadStats} loading={loading}>
+            同步数据
+          </Button>
+        }
+      />
 
-      {errorMessage && <Typography.Text type="danger">ERROR: {errorMessage}</Typography.Text>}
+      {errorMessage && (
+        <Typography.Text type="danger">
+          {errorMessage}
+        </Typography.Text>
+      )}
 
       <Row gutter={[24, 24]}>
         {cards.map((card) => (
           <Col key={card.label} xs={24} sm={12} xl={8}>
-            <Card>
-              <Flex vertical gap={8}>
-                <Flex justify="space-between" align="center">
-                  <Typography.Text type="secondary" style={{ fontWeight: 500 }}>
+            <Card className="stat-card is-interactive" styles={{ body: { padding: '22px 24px' } }}>
+              <Flex align="center" gap={16}>
+                <span className="stat-icon">{card.icon}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="metric-label" style={{ marginBottom: 2 }}>
                     {card.label}
-                  </Typography.Text>
-                  <span
-                    style={{
-                      display: 'inline-flex',
-                      padding: 8,
-                      borderRadius: 8,
-                      background: card.bg,
-                      color: card.color,
-                    }}
-                  >
-                    {card.icon}
-                  </span>
-                </Flex>
-                <Statistic value={card.value} valueStyle={{ fontSize: 34, fontWeight: 700, lineHeight: 1.2 }} />
+                  </div>
+                  <Statistic value={card.value} valueStyle={{ fontSize: 30, fontWeight: 700, letterSpacing: '-0.5px' }} />
+                </div>
+              </Flex>
+              <div
+                style={{
+                  marginTop: 16,
+                  paddingTop: 12,
+                  borderTop: `1px solid ${token.colorBorderSecondary}`,
+                }}
+              >
                 <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                   {card.note}
                 </Typography.Text>
-              </Flex>
+              </div>
             </Card>
           </Col>
         ))}
@@ -126,18 +122,18 @@ const Stats: React.FC = () => {
 
       <Row gutter={[24, 24]}>
         <Col xs={24} md={8}>
-          <Card>
+          <Card className="is-interactive">
             <Statistic
-              title="识别事件总数"
+              title={<span className="metric-label">识别事件总数</span>}
               value={stats.event_total}
               valueStyle={{ fontSize: 28, fontWeight: 700 }}
             />
           </Card>
         </Col>
         <Col xs={24} md={8}>
-          <Card>
+          <Card className="is-interactive">
             <Statistic
-              title="出勤率"
+              title={<span className="metric-label">出勤率</span>}
               value={stats.attendance_rate * 100}
               precision={1}
               suffix="%"
@@ -146,13 +142,11 @@ const Stats: React.FC = () => {
           </Card>
         </Col>
         <Col xs={24} md={8}>
-          <Card>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                识别成功率
-              </Typography.Text>
+          <Card className="is-interactive">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span className="metric-label">识别成功率</span>
               <Tooltip title="计算公式：(签到成功 + 重复签到 + 已识别) / (签到成功 + 重复签到 + 已识别 + 未知人脸)，排除未检测到人脸的空帧。">
-                <Info size={14} style={{ color: token.colorTextSecondary, cursor: 'pointer' }} />
+                <Info size={13} style={{ color: token.colorTextSecondary, cursor: 'pointer' }} />
               </Tooltip>
             </div>
             <Statistic
@@ -166,58 +160,71 @@ const Stats: React.FC = () => {
       </Row>
 
       {recognizedCount > 0 && (
-        <Typography.Text type="secondary">
-          识别预览事件 {recognizedCount} 次：表示系统识别到了注册用户，但本次请求没有写入签到表。
+        <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+          识别预览事件 {recognizedCount} 次：系统识别到了注册用户，但本次请求没有写入签到表。
         </Typography.Text>
       )}
 
-      <Card title="识别事件类型分布">
-        {Object.keys(stats.event_counts).length === 0 ? (
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无识别事件" />
-        ) : (
-          <Space direction="vertical" size={14} style={{ width: '100%' }}>
-            {Object.entries(stats.event_counts).map(([eventType, count]) => {
-              const labelMap: Record<string, string> = {
-                recognized: '用户识别',
-                duplicate: '重复签到',
-                unknown: '陌生人',
-                no_model: '未注册',
-                no_face: '未检测到人脸',
-              };
-              return (
-                <div key={eventType}>
-                  <Flex justify="space-between" style={{ marginBottom: 4 }}>
-                    <Typography.Text>{labelMap[eventType] || eventType}</Typography.Text>
-                    <Typography.Text strong>{count}</Typography.Text>
-                  </Flex>
-                  <Progress percent={Math.round((count / Math.max(1, stats.event_total)) * 100)} />
-                </div>
-              );
-            })}
-          </Space>
-        )}
-      </Card>
+      <Row gutter={[24, 24]}>
+        <Col xs={24} lg={12}>
+          <Card title={<span style={{ fontWeight: 600 }}>识别事件类型分布</span>} style={{ height: '100%' }}>
+            {Object.keys(stats.event_counts).length === 0 ? (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无识别事件" />
+            ) : (
+              <Space direction="vertical" size={16} style={{ width: '100%' }}>
+                {Object.entries(stats.event_counts).map(([eventType, count]) => {
+                  const labelMap: Record<string, string> = {
+                    recognized: '用户识别',
+                    duplicate: '重复签到',
+                    unknown: '陌生人',
+                    no_model: '未注册',
+                    no_face: '未检测到人脸',
+                  };
+                  return (
+                    <div key={eventType} className="meter-row">
+                      <div className="meter-head">
+                        <Typography.Text>{labelMap[eventType] || eventType}</Typography.Text>
+                        <Typography.Text strong className="mono">
+                          {count}
+                        </Typography.Text>
+                      </div>
+                      <Progress
+                        percent={Math.round((count / Math.max(1, stats.event_total)) * 100)}
+                        strokeColor={token.colorPrimary}
+                      />
+                    </div>
+                  );
+                })}
+              </Space>
+            )}
+          </Card>
+        </Col>
 
-      <Card title="用户签到次数">
-        {userEntries.length === 0 ? (
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无成功签到记录" />
-        ) : (
-          <Space direction="vertical" size={14} style={{ width: '100%' }}>
-            {userEntries.map(([name, count]) => (
-              <div key={name}>
-                <Flex justify="space-between" style={{ marginBottom: 4 }}>
-                  <Typography.Text>{name}</Typography.Text>
-                  <Typography.Text strong>{count}</Typography.Text>
-                </Flex>
-                <Progress percent={Math.round((count / maxUserCount) * 100)} showInfo={false} />
-              </div>
-            ))}
-          </Space>
-        )}
-        <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 20 }}>
-          总记录数: {stats.total_records}
-        </Typography.Text>
-      </Card>
+        <Col xs={24} lg={12}>
+          <Card title={<span style={{ fontWeight: 600 }}>用户签到次数</span>} style={{ height: '100%' }}>
+            {userEntries.length === 0 ? (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无成功签到记录" />
+            ) : (
+              <Space direction="vertical" size={16} style={{ width: '100%' }}>
+                {userEntries.map(([name, count]) => (
+                  <div key={name} className="meter-row">
+                    <div className="meter-head">
+                      <Typography.Text>{name}</Typography.Text>
+                      <Typography.Text strong className="mono">
+                        {count}
+                      </Typography.Text>
+                    </div>
+                    <Progress percent={Math.round((count / maxUserCount) * 100)} showInfo={false} strokeColor={token.colorPrimary} />
+                  </div>
+                ))}
+              </Space>
+            )}
+            <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 18 }}>
+              记录总数 {stats.total_records}
+            </Typography.Text>
+          </Card>
+        </Col>
+      </Row>
     </Space>
   );
 };
