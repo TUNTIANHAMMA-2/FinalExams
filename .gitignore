@@ -12,9 +12,14 @@ __pycache__/
 AGENTS.md
 
 # Generated/intermediate report assets
-SoftwareEngineering/generated/*
-!SoftwareEngineering/generated/images/
-!SoftwareEngineering/generated/images/*.png
+generate_rhizodelta_course_reports.py
+javaee-web-app/generated/
+javaee-web-app/images/
+javaee-web-app/JavaEE企业级Web应用开发实战期末课程设计报告.md
+vuejs-app-dev/generated/
+vuejs-app-dev/images/
+vuejs-app-dev/Vue.js应用开发期末课程设计报告.md
+SoftwareEngineering/generated/
 SoftwareEngineering/generate_dorm_repair_report.py
 SoftwareEngineering/*.manual-import-backup.doc
 SoftwareEngineering/__pycache__/
