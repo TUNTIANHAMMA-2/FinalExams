@@ -150,16 +150,17 @@
 
 ## 六、代码实现说明
 
-核心代码位于 `src/medicine_sales_analysis/pipeline.py`，入口文件为 `main.py`。代码按评分点拆成独立函数：
+入口文件为 `main.py`，完整流程由 `src/medicine_sales_analysis/pipeline.py` 调度。为了便于按评分点讲解，核心代码已拆成独立模块：
 
-- `load_sales_data()`：读取 Excel 并校验字段。
-- `inspect_raw_data()`：输出数据概览。
-- `rename_sales_time()`：修正列名。
-- `clean_sales_data()`：处理重复值、缺失值、异常值和数据类型。
-- `compute_monthly_summary()`：计算月度销售统计和月均实收金额。
-- `compute_weekday_summary()`：按星期统计销售数量、应收金额和实收金额。
-- `compute_top_products()`：统计销售数量前十位药品。
-- `plot_*()`：生成三张可视化图表。
+- `data_loading.py`：读取 Excel 并校验字段。
+- `data_overview.py`：输出数据概览，并将 `购药时间` 修正为 `销售时间`。
+- `data_cleaning.py`：处理重复值、缺失值、类型转换、异常值、星期重算、按销售时间排序并重置索引。
+- `monthly_sales.py`：计算月度销售统计和月均实收金额。
+- `time_actual_relationship.py`：汇总每日实收金额并生成销售时间关系图。
+- `weekday_sales.py`：计算星期分组统计并生成星期统计图。
+- `top_products.py`：计算销售数量前十位药品并生成 Top 10 图。
+- `visualization.py`：统一配置图表中文字体和 PNG 输出后端。
+- `outputs.py`：输出清洗数据、统计表、异常记录、质量摘要和运行摘要。
 
 代码中对关键清洗策略、异常处理策略和图表生成逻辑都添加了说明性注释，便于答辩时解释实现思路。
 
@@ -168,4 +169,3 @@
 通过本次项目，我完整实践了从数据读取、数据概览、数据清洗、异常处理、分组统计到图表生成的分析流程。项目中最需要注意的是异常值处理不能简单“一删了之”：负数销售、无效日期和关键字段缺失属于确定错误，应当剔除；但大额销售或大数量销售可能是真实业务现象，因此更适合作为统计异常保留复核。
 
 本项目最终形成了可运行代码、清洗数据、统计表、图表、报告和答辩文档，能够较完整地对应《Python数据收集与分析》期末考查的评分标准。
-

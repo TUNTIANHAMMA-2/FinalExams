@@ -14,7 +14,7 @@
 
 - `../README.md`：安装、运行和评分点对应关系。
 - `../main.py`：一键运行入口。
-- `../src/medicine_sales_analysis/pipeline.py`：核心清洗、统计和绘图代码。
+- `../src/medicine_sales_analysis/`：按评分点拆分的清洗、统计、绘图和输出代码。
 - `../generated/`：运行后生成的表格、图表和摘要。
 - `../Python数据收集与分析期末考查报告.md`：期末报告内容源。
 - `../Python数据收集与分析期末考查报告.docx`：保留原模板格式的正式 Word 报告。

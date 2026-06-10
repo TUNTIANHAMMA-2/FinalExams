@@ -44,7 +44,7 @@ python -m unittest discover -s tests
 | `student-report-template/` | 期末考查报告模板 | 学生报告格式参考 |
 | `exam-materials/data/` | 药品销售数据 Excel | 原始数据 |
 | `exam-materials/starter-code/` | 考试题目脚本 | 原始题目骨架 |
-| `src/medicine_sales_analysis/` | 清洗、统计、绘图核心逻辑 | 可读、可测试的实现代码 |
+| `src/medicine_sales_analysis/` | 按评分点拆分的分析模块 | 可读、可测试的实现代码 |
 | `main.py` | 一键运行入口 | 生成全部结果 |
 | `tests/` | 单元测试 | 验证核心清洗和统计规则 |
 | `generated/tables/` | CSV/JSON 结果 | 清洗数据、月度统计、星期统计、Top 10、异常记录 |
@@ -62,18 +62,36 @@ python -m unittest discover -s tests
 
 | 评分点 | 对应实现 |
 | --- | --- |
-| 数据加载 | `load_sales_data()` 使用 `pandas.read_excel()` 读取 Excel |
-| 数据概览 | `inspect_raw_data()` 输出行列数、字段、类型、缺失、重复 |
-| 修正列名 | `rename_sales_time()` 将 `购药时间` 改为 `销售时间` |
-| 重复值处理 | 基于业务字段检测并删除重复行 |
-| 缺失值处理 | 缺失关键分析字段的行剔除；缺失社保卡号用 `未知社保卡` 标记 |
-| 异常值处理 | 无效日期、非正销售数量/金额剔除；IQR 统计异常保留复核 |
-| 时间排序 | 清洗后按 `销售时间` 升序排序并重置索引 |
-| 月均销售金额 | `monthly_sales_summary.csv` 和运行摘要输出月均实收金额 |
-| 销售时间与实收金额关系 | `generated/figures/sales_time_actual_amount.png` |
-| 星期分组统计 | `weekday_sales_summary.csv` 和对应图表 |
-| Top 10 药品 | `top10_products_by_quantity.csv` 和对应图表 |
+| 数据加载 | `data_loading.py` 中的 `load_sales_data()` 使用 `pandas.read_excel()` 读取 Excel |
+| 数据概览 | `data_overview.py` 中的 `inspect_raw_data()` 输出行列数、字段、类型、缺失、重复 |
+| 修正列名 | `data_overview.py` 中的 `rename_sales_time()` 将 `购药时间` 改为 `销售时间` |
+| 重复值处理 | `data_cleaning.py` 中基于业务字段检测并删除重复行 |
+| 缺失值处理 | `data_cleaning.py` 中剔除缺失关键分析字段的行，缺失社保卡号用 `未知社保卡` 标记 |
+| 异常值处理 | `data_cleaning.py` 中剔除无效日期、非正销售数量/金额；IQR 统计异常保留复核 |
+| 时间排序 | `data_cleaning.py` 中按 `销售时间` 升序排序并重置索引 |
+| 月均销售金额 | `monthly_sales.py` 生成 `monthly_sales_summary.csv` 并输出月均实收金额 |
+| 销售时间与实收金额关系 | `time_actual_relationship.py` 生成每日实收金额表并绘制关系图 |
+| 星期分组统计 | `weekday_sales.py` 生成星期统计表和对应图表 |
+| Top 10 药品 | `top_products.py` 生成 Top 10 药品表和对应图表 |
 | 项目汇报 | `答辩.md`、`docs/defense-outline.md`、`docs/defense-qa.md` |
+
+## 代码模块
+
+| 文件 | 对应考点 / 职责 |
+| --- | --- |
+| `main.py` | 命令行入口，解析参数并调用完整流程 |
+| `src/medicine_sales_analysis/pipeline.py` | 流程调度，只串联各考点模块 |
+| `src/medicine_sales_analysis/data_loading.py` | 数据加载 |
+| `src/medicine_sales_analysis/data_overview.py` | 数据概览、列名修正 |
+| `src/medicine_sales_analysis/data_cleaning.py` | 重复值、缺失值、类型转换、异常值、排序重置索引 |
+| `src/medicine_sales_analysis/monthly_sales.py` | 月均销售金额 |
+| `src/medicine_sales_analysis/time_actual_relationship.py` | 销售时间与实收金额关系 |
+| `src/medicine_sales_analysis/weekday_sales.py` | 星期分组统计和图表 |
+| `src/medicine_sales_analysis/top_products.py` | 销售数量前十位药品统计和图表 |
+| `src/medicine_sales_analysis/visualization.py` | 图表中文字体和 Matplotlib 后端配置 |
+| `src/medicine_sales_analysis/outputs.py` | CSV、JSON、PNG 和运行摘要输出 |
+| `src/medicine_sales_analysis/models.py` | 结果对象定义 |
+| `src/medicine_sales_analysis/constants.py` | 字段名、星期顺序等常量 |
 
 ## 文档与代码推进方式
 

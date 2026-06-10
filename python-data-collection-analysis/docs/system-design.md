@@ -34,7 +34,18 @@ Excel 原始数据
 | 文件 | 作用 |
 | --- | --- |
 | `main.py` | 命令行入口，调用完整分析流程 |
-| `src/medicine_sales_analysis/pipeline.py` | 数据加载、清洗、统计、绘图和输出 |
+| `src/medicine_sales_analysis/pipeline.py` | 流程调度，只串联各考点模块 |
+| `src/medicine_sales_analysis/data_loading.py` | 数据加载 |
+| `src/medicine_sales_analysis/data_overview.py` | 数据概览、列名修正 |
+| `src/medicine_sales_analysis/data_cleaning.py` | 重复值、缺失值、类型转换、异常值、排序重置索引 |
+| `src/medicine_sales_analysis/monthly_sales.py` | 月均销售金额 |
+| `src/medicine_sales_analysis/time_actual_relationship.py` | 销售时间与实收金额关系图 |
+| `src/medicine_sales_analysis/weekday_sales.py` | 星期分组统计和图表 |
+| `src/medicine_sales_analysis/top_products.py` | 销售数量前十位药品统计和图表 |
+| `src/medicine_sales_analysis/visualization.py` | 图表中文字体和 Matplotlib 后端配置 |
+| `src/medicine_sales_analysis/outputs.py` | 表格、图表和运行摘要输出 |
+| `src/medicine_sales_analysis/models.py` | 分析结果和清洗结果对象 |
+| `src/medicine_sales_analysis/constants.py` | 字段名、星期顺序等常量 |
 | `scripts/build_template_report.py` | 读取原报告模板并生成模板版 Word 报告 |
 | `tests/test_pipeline.py` | 验证清洗规则和统计结果 |
 | `requirements.txt` | 固定依赖版本 |

@@ -77,12 +77,17 @@ python scripts/build_template_report.py
 
 ## 7. 展示源码
 
-打开 `src/medicine_sales_analysis/pipeline.py`，重点说明：
+打开 `src/medicine_sales_analysis/`，重点说明：
 
-- 为什么要先修正列名再处理重复值。
-- 为什么要用 DateTime 重新计算星期。
-- 为什么对确定错误剔除，对 IQR 大额异常保留复核。
-- 函数拆分让代码更容易测试和答辩说明。
+- `data_loading.py` 对应数据加载。
+- `data_overview.py` 对应数据概览和列名修正。
+- `data_cleaning.py` 对应重复值、缺失值、异常值、类型转换和排序。
+- `monthly_sales.py` 对应月均销售金额。
+- `time_actual_relationship.py` 对应销售时间与实收金额关系。
+- `weekday_sales.py` 对应星期分组统计和图表。
+- `top_products.py` 对应销售数量前十位药品统计和图表。
+- `visualization.py` 对应图表中文字体和 PNG 输出配置。
+- `pipeline.py` 只负责把以上步骤串起来。
 
 ## 8. 运行测试
 

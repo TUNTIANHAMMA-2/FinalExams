@@ -41,6 +41,13 @@ IQR 只能说明数值在统计上偏大或偏小，不能证明数据一定错�
 建议展示：
 
 - `main.py`：一键运行入口。
-- `src/medicine_sales_analysis/pipeline.py`：核心清洗、统计和绘图逻辑。
+- `src/medicine_sales_analysis/data_loading.py`：数据加载。
+- `src/medicine_sales_analysis/data_overview.py`：数据概览和列名修正。
+- `src/medicine_sales_analysis/data_cleaning.py`：核心清洗逻辑。
+- `src/medicine_sales_analysis/monthly_sales.py`：月均销售金额。
+- `src/medicine_sales_analysis/time_actual_relationship.py`：销售时间与实收金额关系。
+- `src/medicine_sales_analysis/weekday_sales.py`：星期分组统计和图表。
+- `src/medicine_sales_analysis/top_products.py`：销售数量前十位药品统计和图表。
+- `src/medicine_sales_analysis/visualization.py`：图表中文字体和 PNG 输出配置。
+- `src/medicine_sales_analysis/pipeline.py`：流程调度。
 - `tests/test_pipeline.py`：核心规则测试。
-

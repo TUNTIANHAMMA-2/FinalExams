@@ -65,7 +65,7 @@
 内容：
 
 - `main.py` 一键运行。
-- `pipeline.py` 拆分加载、清洗、统计、绘图。
+- 代码按考点拆分：`data_loading.py`、`data_overview.py`、`data_cleaning.py`、`monthly_sales.py`、`time_actual_relationship.py`、`weekday_sales.py`、`top_products.py`。
 - `tests/` 验证核心规则。
 
 ### 第 9 页：总结
@@ -84,4 +84,3 @@
 4. 结果：清洗后 6510 行，月均实收金额 43434.98 元。
 5. 分析：星期五销售表现最好，销售数量最高药品是苯磺酸氨氯地平片(安内真)。
 6. 实现：Pandas 清洗统计，Matplotlib/Seaborn 绘图，unittest 验证规则。
-
