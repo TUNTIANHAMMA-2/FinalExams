@@ -132,7 +132,6 @@
 
 | 路径 | 作用 |
 | --- | --- |
-| `PIc/ASCIIPage.png` | 项目展示图片资源。 |
 | `images/` | 图片资源目录，当前未包含核心源码文件。 |
 | `generated/` | 生成文件目录，当前未包含核心源码文件。 |
 | `.venv/` | Python 虚拟环境目录，不属于业务源码。 |
@@ -149,11 +148,11 @@
 
 | 命令 | 作用 |
 | --- | --- |
-| `python -m app.main serve` | 启动本地 HTTP API，供前端调用。 |
-| `python -m app.main register --user-id ... --name ... --image ...` | 通过命令行注册一张图片。 |
-| `python -m app.main run` | 通过本机摄像头启动命令行实时签到流程。 |
-| `python -m app.main stats` | 输出签到统计结果。 |
-| `python -m app.main demo-checkin` | 写入一条演示签到记录，便于验证数据链路。 |
+| `.venv/bin/python -m app.main serve` | 启动本地 HTTP API，供前端调用。 |
+| `.venv/bin/python -m app.main register --user-id ... --name ... --image ...` | 通过命令行注册一张图片。 |
+| `.venv/bin/python -m app.main run` | 通过本机摄像头启动命令行实时签到流程。 |
+| `.venv/bin/python -m app.main stats` | 输出签到统计结果。 |
+| `.venv/bin/python -m app.main demo-checkin` | 写入一条演示签到记录，便于验证数据链路。 |
 
 `main()` 会先调用 `storage.ensure_data_dirs()` 创建数据目录，然后根据命令分发到对应处理函数。
 
@@ -693,14 +692,21 @@ ASCII 渲染不是识别算法本身，而是视觉展示层。它增强了项�
 安装 Python 依赖：
 
 ```bash
-pip install -r requirements.txt
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
 ```
+
+Windows 对应命令可使用 `.venv\Scripts\python -m pip install -r requirements.txt`。
 
 启动后端 API：
 
 ```bash
-python -m app.main serve
+.venv/bin/python -m app.main serve
 ```
+
+Windows 对应命令可使用 `.venv\Scripts\python -m app.main serve`。
+
+排错说明：如果前端页面显示 `No module named 'cv2'`，实际原因是后端 API 使用了没有安装 OpenCV 的 Python 环境。前端只是展示了后端异常。应使用安装了 `requirements.txt` 的同一个虚拟环境启动后端，例如 `.venv/bin/python -m app.main serve`。本项目需要 `opencv-contrib-python`，因为普通 `opencv-python` 不包含人脸识别所需的 `cv2.face` 模块。
 
 启动前端：
 
@@ -713,10 +719,10 @@ npm run dev
 命令行演示：
 
 ```bash
-python -m app.main register --user-id 2026001 --name 张三 --image data/faces/zhangsan.jpg
-python -m app.main run
-python -m app.main stats
-python -m app.main demo-checkin --user-id 2026001 --name 张三
+.venv/bin/python -m app.main register --user-id 2026001 --name 张三 --image data/faces/zhangsan.jpg
+.venv/bin/python -m app.main run
+.venv/bin/python -m app.main stats
+.venv/bin/python -m app.main demo-checkin --user-id 2026001 --name 张三
 ```
 
 ## 10. 答辩讲解建议

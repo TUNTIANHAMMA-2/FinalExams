@@ -82,9 +82,14 @@ docs/
 
 ## 安装依赖
 
+建议使用项目虚拟环境安装后端依赖，后续启动后端时也使用同一个 Python 解释器：
+
 ```bash
-pip install -r requirements.txt
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
 ```
+
+Windows 对应命令可使用 `.venv\Scripts\python -m pip install -r requirements.txt`。
 
 Windows 环境建议使用 `opencv-contrib-python`，不要安装 `face-recognition`。`face-recognition` 依赖 `dlib`，在 Windows 和 Python 3.14 上经常需要源码编译，容易失败。
 
@@ -92,7 +97,7 @@ Windows 环境建议使用 `opencv-contrib-python`，不要安装 `face-recognit
 
 ```bash
 pip uninstall face-recognition dlib face-recognition-models opencv-python -y
-pip install -r requirements.txt
+.venv/bin/python -m pip install -r requirements.txt
 ```
 
 ## 运行方式
@@ -102,10 +107,24 @@ pip install -r requirements.txt
 后端 API：
 
 ```bash
-python -m app.main serve
+.venv/bin/python -m app.main serve
 ```
 
+Windows 对应命令可使用 `.venv\Scripts\python -m app.main serve`。
+
 默认 API 地址是 `http://127.0.0.1:8765`。
+
+如果前端页面显示 `No module named 'cv2'`，问题通常不在前端，而是后端 API 使用了没有安装 OpenCV 的 Python 环境。请先停止当前后端进程，再用项目虚拟环境启动：
+
+```bash
+.venv/bin/python -m app.main serve
+```
+
+也可以先执行下面的命令确认后端环境可以导入 OpenCV：
+
+```bash
+.venv/bin/python -c "import cv2; print(cv2.__version__)"
+```
 
 前端页面：
 
@@ -130,19 +149,19 @@ npm run dev
 命令行演示仍可单独运行：
 
 ```bash
-python -m app.main register --user-id 2026001 --name 张三 --image data/faces/zhangsan.jpg
-python -m app.main run
-python -m app.main stats
-python -m app.main demo-checkin --user-id 2026001 --name 张三
+.venv/bin/python -m app.main register --user-id 2026001 --name 张三 --image data/faces/zhangsan.jpg
+.venv/bin/python -m app.main run
+.venv/bin/python -m app.main stats
+.venv/bin/python -m app.main demo-checkin --user-id 2026001 --name 张三
 ```
 
-Linux/macOS 也可以使用：
+Windows 对应命令可使用：
 
 ```bash
-python3 -m app.main register --user-id 2026001 --name 张三 --image data/faces/zhangsan.jpg
-python3 -m app.main run
-python3 -m app.main stats
-python3 -m app.main demo-checkin --user-id 2026001 --name 张三
+.venv\Scripts\python -m app.main register --user-id 2026001 --name 张三 --image data/faces/zhangsan.jpg
+.venv\Scripts\python -m app.main run
+.venv\Scripts\python -m app.main stats
+.venv\Scripts\python -m app.main demo-checkin --user-id 2026001 --name 张三
 ```
 
 说明：

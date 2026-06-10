@@ -6,8 +6,8 @@
 
 确认内容：
 
-- Python 依赖已安装：`pip install -r requirements.txt`。
-- 后端 API 可以启动：`python -m app.main serve`。
+- Python 依赖已安装到项目虚拟环境：`.venv/bin/python -m pip install -r requirements.txt`。
+- 后端 API 使用项目虚拟环境启动：`.venv/bin/python -m app.main serve`。
 - 前端依赖已安装并可启动：`npm run dev`。
 - 浏览器允许摄像头权限。
 - 如果现场摄像头不可用，准备已有截图或使用命令行 `demo-checkin` 验证数据链路。
@@ -32,13 +32,14 @@
 命令：
 
 ```bash
-python -m app.main serve
+.venv/bin/python -m app.main serve
 ```
 
 讲解点：
 
 - 后端提供注册、样本校验、识别签到、记录查询、统计和智能分析接口。
 - 默认 API 地址是 `http://127.0.0.1:8765`。
+- 如果页面显示 `No module named 'cv2'`，说明后端没有使用安装了 OpenCV 的虚拟环境启动，需要停止后端后重新执行上面的命令。
 
 ### 步骤二：启动前端
 
@@ -146,7 +147,7 @@ npm run dev
 
 如果现场摄像头不可用：
 
-1. 使用 `python -m app.main demo-checkin --user-id 2026001 --name 张三` 写入演示签到。
+1. 使用 `.venv/bin/python -m app.main demo-checkin --user-id 2026001 --name 张三` 写入演示签到。
 2. 打开数据中心和系统分析页面验证数据链路。
 3. 在智能分析页面生成演示数据并训练模型。
-4. 展示 `../PIc/ASCIIPage.png` 或报告截图说明实时界面效果。
+4. 使用报告截图或现场页面说明实时界面效果。
