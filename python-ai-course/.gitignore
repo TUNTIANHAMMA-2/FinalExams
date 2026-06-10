@@ -15,3 +15,5 @@ data/faces/*
 !data/encodings/.gitkeep
 data/models/*
 !data/models/.gitkeep
+generated/report_work/
+《人工智能基础与应用》期末考查报告模板（交电子档）.doc
