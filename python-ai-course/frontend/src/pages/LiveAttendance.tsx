@@ -85,6 +85,63 @@ function captureImage(video: HTMLVideoElement, canvas: HTMLCanvasElement) {
   return canvas.toDataURL('image/jpeg', 0.85);
 }
 
+function formatErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof DOMException && error.name) {
+    return `${error.name}: ${error.message || fallback}`;
+  }
+  if (error instanceof Error) {
+    return error.message || fallback;
+  }
+  return fallback;
+}
+
+function waitForVideoReady(video: HTMLVideoElement) {
+  if (video.readyState >= HTMLMediaElement.HAVE_METADATA && video.videoWidth > 0) {
+    return Promise.resolve();
+  }
+
+  return new Promise<void>((resolve, reject) => {
+    const cleanup = () => {
+      window.clearTimeout(timeoutId);
+      video.removeEventListener('loadedmetadata', handleReady);
+      video.removeEventListener('canplay', handleReady);
+    };
+    const handleReady = () => {
+      cleanup();
+      resolve();
+    };
+    const timeoutId = window.setTimeout(() => {
+      cleanup();
+      reject(new Error('摄像头画面初始化超时'));
+    }, 4000);
+
+    video.addEventListener('loadedmetadata', handleReady, { once: true });
+    video.addEventListener('canplay', handleReady, { once: true });
+  });
+}
+
+async function requestCameraStream() {
+  const registerPageConstraints: MediaStreamConstraints = {
+    video: { facingMode: 'user' },
+    audio: false,
+  };
+  const fallbackConstraints: MediaStreamConstraints = {
+    video: true,
+    audio: false,
+  };
+
+  try {
+    return await navigator.mediaDevices.getUserMedia(registerPageConstraints);
+  } catch (error) {
+    const isPermissionError =
+      error instanceof DOMException && (error.name === 'NotAllowedError' || error.name === 'SecurityError');
+    if (isPermissionError) {
+      throw error;
+    }
+    return navigator.mediaDevices.getUserMedia(fallbackConstraints);
+  }
+}
+
 const LiveAttendance: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const asciiCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -211,11 +268,9 @@ const LiveAttendance: React.FC = () => {
     try {
       setStreamStatus('starting');
       setErrorMessage('');
+      setAsciiFrame('正在请求摄像头权限...');
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
-        audio: false,
-      });
+      const stream = await requestCameraStream();
 
       streamRef.current = stream;
 
@@ -224,9 +279,12 @@ const LiveAttendance: React.FC = () => {
       }
 
       videoRef.current.srcObject = stream;
+      setAsciiFrame('正在初始化摄像头画面...');
       await videoRef.current.play();
+      await waitForVideoReady(videoRef.current);
 
       setStreamStatus('running');
+      setAsciiFrame(frameToAscii(videoRef.current, asciiCanvasRef.current, heightScaleRef.current));
       asciiIntervalRef.current = window.setInterval(() => {
         if (videoRef.current && asciiCanvasRef.current) {
           setAsciiFrame(frameToAscii(videoRef.current, asciiCanvasRef.current, heightScaleRef.current));
@@ -239,7 +297,7 @@ const LiveAttendance: React.FC = () => {
     } catch (error) {
       stopCamera();
       setStreamStatus('error');
-      setErrorMessage(error instanceof Error ? error.message : '摄像头启动失败');
+      setErrorMessage(formatErrorMessage(error, '摄像头启动失败'));
     }
   };
 
@@ -318,7 +376,20 @@ const LiveAttendance: React.FC = () => {
 
   return (
     <Space direction="vertical" size={24} style={{ width: '100%' }}>
-      <video ref={videoRef} playsInline muted style={{ display: 'none' }} />
+      <video
+        ref={videoRef}
+        playsInline
+        muted
+        style={{
+          position: 'fixed',
+          left: 0,
+          top: 0,
+          width: 1,
+          height: 1,
+          opacity: 0,
+          pointerEvents: 'none',
+        }}
+      />
       <canvas ref={asciiCanvasRef} style={{ display: 'none' }} />
       <canvas ref={captureCanvasRef} style={{ display: 'none' }} />
 
