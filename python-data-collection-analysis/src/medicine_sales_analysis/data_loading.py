@@ -1,4 +1,4 @@
-"""Exam point 1: load the local medicine sales Excel dataset."""
+"""考点 1：加载本地药品销售 Excel 数据。"""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from .constants import EXPECTED_COLUMNS
 
 
 def load_sales_data(data_path: Path) -> pd.DataFrame:
-    """Load the Excel source data and validate that required columns exist."""
+    """读取 Excel 原始数据并校验必要字段。"""
     if not data_path.exists():
         raise FileNotFoundError(f"找不到数据文件：{data_path}")
 
@@ -19,4 +19,3 @@ def load_sales_data(data_path: Path) -> pd.DataFrame:
     if missing_columns:
         raise ValueError(f"数据缺少必要列：{', '.join(missing_columns)}")
     return data
-

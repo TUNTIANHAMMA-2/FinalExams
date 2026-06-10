@@ -1,4 +1,4 @@
-"""Persist cleaned data, summary tables, charts, and generated run summaries."""
+"""保存清洗数据、统计表、图表和运行摘要。"""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ def write_markdown_summary(
     monthly_average_actual: float,
     top_products: pd.DataFrame,
 ) -> None:
-    """Write a concise generated Markdown summary for reports and defense."""
+    """写入用于报告和答辩的简要 Markdown 运行摘要。"""
     overview = cleaned_data.quality_summary["overview"]
     top_product = top_products.iloc[0]
     lines = [
@@ -71,7 +71,7 @@ def write_outputs(
     top_products: pd.DataFrame,
     daily_actual: pd.DataFrame,
 ) -> None:
-    """Persist cleaned data, summary tables, quality evidence, and charts."""
+    """保存清洗数据、统计表、数据质量证据和图表。"""
     tables_dir = output_dir / "tables"
     figures_dir = output_dir / "figures"
     tables_dir.mkdir(parents=True, exist_ok=True)

@@ -1,4 +1,4 @@
-"""Tests for the medicine sales analysis pipeline."""
+"""药品销售分析流程的单元测试。"""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from src.medicine_sales_analysis.pipeline import (
 
 
 class PipelineTest(unittest.TestCase):
-    """Validate the core rules used by the final assessment script."""
+    """验证期末考查脚本使用的核心清洗和统计规则。"""
 
     def setUp(self) -> None:
         self.raw = pd.DataFrame(
@@ -88,4 +88,3 @@ class PipelineTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

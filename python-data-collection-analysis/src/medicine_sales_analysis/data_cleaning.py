@@ -1,4 +1,4 @@
-"""Exam point 3: clean duplicates, missing values, types, and anomalies."""
+"""考点 3：清理重复值、缺失值、类型和异常值。"""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from .models import CleanedData
 
 
 def normalize_types(data: pd.DataFrame) -> pd.DataFrame:
-    """Convert sales date and numeric fields into analysis-friendly types."""
+    """将销售日期和数值字段转换为便于分析的数据类型。"""
     normalized = data.copy()
     normalized[SALES_TIME_COLUMN] = pd.to_datetime(
         normalized[SALES_TIME_COLUMN], errors="coerce"
@@ -28,7 +28,7 @@ def normalize_types(data: pd.DataFrame) -> pd.DataFrame:
 
 
 def _format_optional_integer(value: Any, missing_label: str) -> str:
-    """Format Excel integer-like identifiers without scientific notation."""
+    """格式化 Excel 中类似整数的编号，避免科学计数法。"""
     if pd.isna(value):
         return missing_label
     try:
@@ -38,7 +38,7 @@ def _format_optional_integer(value: Any, missing_label: str) -> str:
 
 
 def _join_reasons(row: pd.Series) -> str:
-    """Build a human-readable anomaly reason for one row."""
+    """为一行异常数据生成易读的原因说明。"""
     reasons: list[str] = []
     if pd.isna(row[SALES_TIME_COLUMN]):
         reasons.append("销售时间缺失或日期无效")
@@ -53,7 +53,7 @@ def _join_reasons(row: pd.Series) -> str:
 
 
 def _detect_required_field_errors(data: pd.DataFrame) -> pd.Series:
-    """Return rows that cannot participate in sales analysis."""
+    """返回无法参与销售分析的记录掩码。"""
     invalid_date = data[SALES_TIME_COLUMN].isna()
     invalid_product = data["商品名称"].isna()
     invalid_numeric = data[NUMERIC_COLUMNS].isna().any(axis=1)
@@ -62,11 +62,10 @@ def _detect_required_field_errors(data: pd.DataFrame) -> pd.Series:
 
 
 def _detect_statistical_outliers(data: pd.DataFrame) -> pd.DataFrame:
-    """Detect IQR outliers after removing rows with definite data errors.
+    """在剔除确定错误后检测 IQR 统计异常值。
 
-    High sales quantities or amounts can be legitimate bulk purchases, so these
-    rows are retained in the cleaned dataset and exported for review instead of
-    being blindly deleted.
+    销售数量或金额很高可能是真实批量采购，因此这些记录保留在清洗后数据中，
+    并额外导出供复核，而不是直接删除。
     """
     outlier_parts: list[pd.DataFrame] = []
     for column in NUMERIC_COLUMNS:
@@ -93,7 +92,7 @@ def _detect_statistical_outliers(data: pd.DataFrame) -> pd.DataFrame:
 
 
 def clean_sales_data(raw_data: pd.DataFrame) -> CleanedData:
-    """Apply all cleaning rules required by the assessment rubric."""
+    """应用评分标准要求的全部清洗规则。"""
     overview = inspect_raw_data(raw_data)
 
     # 列名修正：把原始“购药时间”统一为后续分析使用的“销售时间”。
@@ -103,7 +102,7 @@ def clean_sales_data(raw_data: pd.DataFrame) -> CleanedData:
     duplicate_count = int(renamed.duplicated(subset=RENAMED_DATA_COLUMNS).sum())
     deduplicated = renamed.drop_duplicates(subset=RENAMED_DATA_COLUMNS).copy()
 
-    # 类型统一：日期转 DateTime，销售数量/金额转数值，为异常检测做准备。
+    # 类型统一：日期转日期时间类型，销售数量/金额转数值，为异常检测做准备。
     normalized = normalize_types(deduplicated)
 
     # 缺失和确定错误处理：这些行无法参加后续销售统计，直接剔除。
@@ -121,7 +120,7 @@ def clean_sales_data(raw_data: pd.DataFrame) -> CleanedData:
         lambda value: _format_optional_integer(value, "未知商品编码")
     )
 
-    # 原始“星期”列有错误值；重新从 DateTime 计算，保证星期分组可信。
+    # 原始“星期”列有错误值；重新从日期时间字段计算，保证星期分组可信。
     cleaned["星期"] = cleaned[SALES_TIME_COLUMN].dt.dayofweek.map(WEEKDAY_NAMES)
 
     # 评分要求：按照销售时间升序排序并重置索引。
@@ -149,4 +148,3 @@ def clean_sales_data(raw_data: pd.DataFrame) -> CleanedData:
         statistical_outliers=statistical_outliers,
         quality_summary=quality_summary,
     )
-

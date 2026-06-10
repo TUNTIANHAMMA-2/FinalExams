@@ -1,4 +1,4 @@
-"""Exam point: analyze and chart the sales-time versus actual-amount relation."""
+"""考点：分析并绘制销售时间与实收金额的关系。"""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from .visualization import plt
 
 
 def compute_daily_actual(cleaned: pd.DataFrame) -> pd.DataFrame:
-    """Aggregate actual payment amount by date for the time-series chart."""
+    """按日期汇总实收金额，用于时间序列图。"""
     working = cleaned.copy()
     working["日期"] = working[SALES_TIME_COLUMN].dt.date
     return (
@@ -22,7 +22,7 @@ def compute_daily_actual(cleaned: pd.DataFrame) -> pd.DataFrame:
 
 
 def plot_time_vs_actual(daily_actual: pd.DataFrame, output_path: Path) -> None:
-    """Plot the relationship between sales date and actual received amount."""
+    """绘制销售日期与实收金额之间的关系图。"""
     fig, ax = plt.subplots(figsize=(11, 5.5))
     ax.plot(
         pd.to_datetime(daily_actual["日期"]),

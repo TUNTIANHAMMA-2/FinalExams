@@ -1,4 +1,4 @@
-"""Data models returned by the analysis pipeline."""
+"""分析流程返回的数据模型。"""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import pandas as pd
 
 @dataclass(frozen=True)
 class AnalysisResult:
-    """Summary of one completed analysis run."""
+    """一次完整分析运行的摘要。"""
 
     output_dir: Path
     raw_rows: int
@@ -22,7 +22,7 @@ class AnalysisResult:
 
 @dataclass(frozen=True)
 class CleanedData:
-    """Cleaned data plus quality evidence used by reports and tests."""
+    """清洗后的数据，以及报告和测试需要的数据质量证据。"""
 
     raw: pd.DataFrame
     renamed: pd.DataFrame
@@ -30,4 +30,3 @@ class CleanedData:
     removed_rows: pd.DataFrame
     statistical_outliers: pd.DataFrame
     quality_summary: dict[str, Any]
-

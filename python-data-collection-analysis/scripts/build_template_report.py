@@ -1,4 +1,4 @@
-"""Build the final Word report with the original report-template layout."""
+"""按原报告模板版式生成最终 Word 报告。"""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ FIGURES_DIR = PROJECT_ROOT / "generated" / "figures"
 
 
 def set_run_font(run, size: int = 11, bold: bool = False) -> None:
-    """Apply a readable Chinese font to one Word run."""
+    """为一个 Word 文本片段设置可读的中文字体。"""
     run.font.name = "宋体"
     run._element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
     run.font.size = Pt(size)
@@ -31,7 +31,7 @@ def set_run_font(run, size: int = 11, bold: bool = False) -> None:
 
 
 def add_paragraph(cell, text: str = "", bold: bool = False) -> None:
-    """Append one paragraph to a table cell with consistent formatting."""
+    """向表格单元格追加一段统一格式的文字。"""
     paragraph = cell.add_paragraph()
     paragraph.paragraph_format.space_after = Pt(4)
     run = paragraph.add_run(text)
@@ -39,18 +39,18 @@ def add_paragraph(cell, text: str = "", bold: bool = False) -> None:
 
 
 def clear_cell(cell) -> None:
-    """Remove existing template placeholder text while keeping cell borders."""
+    """清除模板占位文字，同时保留单元格边框。"""
     cell.text = ""
 
 
 def add_bullets(cell, items: list[str]) -> None:
-    """Add a simple numbered list inside a Word table cell."""
+    """在 Word 表格单元格内添加简单编号列表。"""
     for index, item in enumerate(items, start=1):
         add_paragraph(cell, f"{index}. {item}")
 
 
 def add_picture(cell, image_path: Path, caption: str) -> None:
-    """Insert one chart image and a caption into the report table."""
+    """向报告表格插入一张图表和说明文字。"""
     if not image_path.exists():
         add_paragraph(cell, f"[缺少图表：{image_path.name}]")
         return
@@ -66,7 +66,7 @@ def add_picture(cell, image_path: Path, caption: str) -> None:
 
 
 def load_results() -> dict[str, object]:
-    """Load generated analysis outputs used to fill the template report."""
+    """读取用于填充模板报告的已生成分析结果。"""
     quality = pd.read_json(TABLES_DIR / "data_quality_summary.json", typ="series")
     monthly = pd.read_csv(TABLES_DIR / "monthly_sales_summary.csv")
     weekday = pd.read_csv(TABLES_DIR / "weekday_sales_summary.csv")
@@ -80,7 +80,7 @@ def load_results() -> dict[str, object]:
 
 
 def format_top_products(top_products: pd.DataFrame, limit: int = 5) -> list[str]:
-    """Return compact text lines for the top product ranking."""
+    """返回前几名药品排行的简短文本。"""
     lines: list[str] = []
     for index, row in top_products.head(limit).iterrows():
         lines.append(
@@ -91,7 +91,7 @@ def format_top_products(top_products: pd.DataFrame, limit: int = 5) -> list[str]
 
 
 def fill_cover(document: Document) -> None:
-    """Keep the original cover format and fill neutral placeholders."""
+    """保留原封面格式，并填入中性占位内容。"""
     replacements = {
         "姓    名：": "姓    名： _____________",
         "学    号：": "学    号： ______________",
@@ -111,7 +111,7 @@ def fill_cover(document: Document) -> None:
 
 
 def fill_main_table(document: Document, results: dict[str, object]) -> None:
-    """Fill the project-purpose and project-process cells in the template."""
+    """填充模板中的项目目的和项目过程单元格。"""
     quality = results["quality"]
     monthly = results["monthly"]
     weekday = results["weekday"]
@@ -195,7 +195,7 @@ def fill_main_table(document: Document, results: dict[str, object]) -> None:
 
 
 def fill_summary_table(document: Document) -> None:
-    """Fill the personal-summary section while keeping signature rows."""
+    """保留签字行，并填充个人总结部分。"""
     second_table = document.tables[1]
     summary_cell = second_table.rows[0].cells[0]
     clear_cell(summary_cell)
@@ -217,7 +217,7 @@ def fill_summary_table(document: Document) -> None:
 
 
 def build_report() -> None:
-    """Build the template-formatted final report."""
+    """生成套用原模板格式的最终报告。"""
     if not TEMPLATE_DOCX.exists():
         raise FileNotFoundError(
             "缺少转换后的模板 docx，请先用 LibreOffice 将原 .doc 模板转换为 .docx："
@@ -235,4 +235,3 @@ def build_report() -> None:
 
 if __name__ == "__main__":
     build_report()
-

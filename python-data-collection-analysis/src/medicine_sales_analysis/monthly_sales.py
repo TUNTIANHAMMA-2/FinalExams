@@ -1,4 +1,4 @@
-"""Exam point: compute monthly sales totals and average actual amount."""
+"""考点：计算月度销售总额和月均实收金额。"""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from .constants import SALES_TIME_COLUMN
 
 
 def compute_monthly_summary(cleaned: pd.DataFrame) -> tuple[pd.DataFrame, float]:
-    """Compute monthly sales totals and the average monthly actual amount."""
+    """计算月度销售汇总和月均实收金额。"""
     working = cleaned.copy()
     working["销售月份"] = working[SALES_TIME_COLUMN].dt.to_period("M").astype(str)
     monthly = (

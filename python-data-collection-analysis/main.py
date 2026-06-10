@@ -1,4 +1,4 @@
-"""Command line entrypoint for the medicine sales data analysis assignment."""
+"""药品销售数据分析作业的命令行入口。"""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "generated"
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Create the command line parser used by the assignment script."""
+    """创建作业脚本使用的命令行参数解析器。"""
     parser = argparse.ArgumentParser(
         description="完成《Python数据收集与分析》药品销售数据清洗、统计和可视化。"
     )
@@ -41,7 +41,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
-    """Run the full analysis pipeline and print a compact result summary."""
+    """运行完整分析流程，并打印简要结果。"""
     args = build_parser().parse_args()
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
@@ -59,7 +59,7 @@ def main() -> int:
     print(f"- 输出目录：{result.output_dir}")
     print(f"- 质量摘要：{summary_path}")
 
-    # Keep a machine-readable one-line summary for shell users and graders.
+    # 保留一行机器可读摘要，方便命令行用户和评分者核对。
     print(
         json.dumps(
             {
@@ -77,4 +77,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

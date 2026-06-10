@@ -1,4 +1,4 @@
-"""Exam point: find and chart the top ten medicines by sales quantity."""
+"""考点：统计并绘制销售数量前十位药品。"""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from .visualization import plt
 
 
 def compute_top_products(cleaned: pd.DataFrame, limit: int = 10) -> pd.DataFrame:
-    """Return the top products ranked by total sales quantity."""
+    """返回按销售数量合计排序的药品排行。"""
     return (
         cleaned.groupby("商品名称", as_index=False)
         .agg(
@@ -26,7 +26,7 @@ def compute_top_products(cleaned: pd.DataFrame, limit: int = 10) -> pd.DataFrame
 
 
 def plot_top_products(top_products: pd.DataFrame, output_path: Path) -> None:
-    """Plot the top ten medicines by sales quantity."""
+    """绘制销售数量前十位药品图。"""
     plot_data = top_products.sort_values("销售数量合计", ascending=True)
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.barh(plot_data["商品名称"], plot_data["销售数量合计"], color="#0891b2")

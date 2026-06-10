@@ -1,17 +1,15 @@
-"""Orchestrate the medicine sales final-assessment pipeline.
+"""调度药品销售期末考查分析流程。
 
-The scoring items live in separate modules so the implementation is easier to
-read during defense:
+评分点拆分到独立模块中，便于答辩时逐项讲解：
 
-- `data_loading.py` handles data loading.
-- `data_overview.py` handles data overview and column rename.
-- `data_cleaning.py` handles duplicates, missing values, type conversion,
-  anomalies, and time sorting.
-- `monthly_sales.py` handles monthly sales and average actual amount.
-- `time_actual_relationship.py` handles the sales-time chart data.
-- `weekday_sales.py` handles weekday grouping and chart data.
-- `top_products.py` handles top-ten product statistics and chart data.
-- `outputs.py` persists generated tables, figures, and summaries.
+- `data_loading.py` 负责数据加载。
+- `data_overview.py` 负责数据概览和列名修正。
+- `data_cleaning.py` 负责重复值、缺失值、类型转换、异常值和时间排序。
+- `monthly_sales.py` 负责月度销售统计和月均实收金额。
+- `time_actual_relationship.py` 负责销售时间关系图的数据。
+- `weekday_sales.py` 负责星期分组统计和图表数据。
+- `top_products.py` 负责销售数量前十位药品统计和图表数据。
+- `outputs.py` 负责保存生成的表格、图表和摘要。
 """
 
 from __future__ import annotations
@@ -34,7 +32,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 def run_analysis(data_path: Path, output_dir: Path) -> AnalysisResult:
-    """Run the complete final-assessment analysis pipeline."""
+    """运行完整期末考查分析流程。"""
     LOGGER.info("读取数据：%s", data_path)
     raw_data = load_sales_data(data_path)
     cleaned_data = clean_sales_data(raw_data)

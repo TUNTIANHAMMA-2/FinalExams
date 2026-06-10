@@ -1,4 +1,4 @@
-"""Shared plotting setup for the medicine sales assessment charts."""
+"""药品销售考查图表的共享绘图配置。"""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import seaborn as sns
 
 
 def configure_plot_style() -> None:
-    """Configure Matplotlib/Seaborn for Chinese labels and PNG output."""
+    """配置 Matplotlib/Seaborn，使其支持中文标签和 PNG 输出。"""
     sns.set_theme(style="whitegrid")
     plt.rcParams["font.sans-serif"] = [
         "WenQuanYi Zen Hei",

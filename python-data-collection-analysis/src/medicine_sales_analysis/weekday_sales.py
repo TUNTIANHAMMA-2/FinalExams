@@ -1,4 +1,4 @@
-"""Exam point: summarize and chart sales grouped by weekday."""
+"""考点：按星期分组汇总销售数据并生成图表。"""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from .visualization import plt
 
 
 def compute_weekday_summary(cleaned: pd.DataFrame) -> pd.DataFrame:
-    """Group sales by weekday and summarize quantity and amounts."""
+    """按星期分组统计销售数量和金额。"""
     working = cleaned.copy()
     working["星期"] = pd.Categorical(
         working["星期"], categories=WEEKDAY_ORDER, ordered=True
@@ -29,7 +29,7 @@ def compute_weekday_summary(cleaned: pd.DataFrame) -> pd.DataFrame:
 
 
 def plot_weekday_summary(weekday_summary: pd.DataFrame, output_path: Path) -> None:
-    """Plot sales quantity and payment amounts grouped by weekday."""
+    """绘制按星期分组的销售数量和金额图。"""
     fig, ax_quantity = plt.subplots(figsize=(10, 5.5))
     ax_amount = ax_quantity.twinx()
 

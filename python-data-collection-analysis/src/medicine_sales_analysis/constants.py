@@ -1,4 +1,4 @@
-"""Shared constants for the medicine sales analysis assignment."""
+"""药品销售分析作业使用的共享常量。"""
 
 ORIGINAL_DATE_COLUMN = "购药时间"
 SALES_TIME_COLUMN = "销售时间"
@@ -36,4 +36,3 @@ WEEKDAY_NAMES = {
     6: "星期日",
 }
 WEEKDAY_ORDER = [WEEKDAY_NAMES[index] for index in range(7)]
-
