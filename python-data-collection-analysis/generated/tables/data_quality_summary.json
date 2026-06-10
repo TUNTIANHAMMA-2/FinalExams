@@ -1,0 +1,48 @@
+{
+  "overview": {
+    "row_count": 6578,
+    "column_count": 8,
+    "columns": [
+      "购药时间",
+      "社保卡号",
+      "商品编码",
+      "商品名称",
+      "销售数量",
+      "应收金额",
+      "实收金额",
+      "星期"
+    ],
+    "dtypes": {
+      "购药时间": "str",
+      "社保卡号": "float64",
+      "商品编码": "float64",
+      "商品名称": "str",
+      "销售数量": "float64",
+      "应收金额": "float64",
+      "实收金额": "float64",
+      "星期": "str"
+    },
+    "missing_counts": {
+      "购药时间": 2,
+      "社保卡号": 2,
+      "商品编码": 1,
+      "商品名称": 1,
+      "销售数量": 1,
+      "应收金额": 1,
+      "实收金额": 1,
+      "星期": 2
+    },
+    "duplicate_rows": 0
+  },
+  "duplicate_rows_removed": 0,
+  "definite_error_rows_removed": 68,
+  "statistical_outlier_marks": 2012,
+  "cleaned_rows": 6510,
+  "date_min": "2022-01-01",
+  "date_max": "2022-07-19",
+  "cleaning_policy": {
+    "removed": "缺失关键分析字段、无效日期、销售数量/金额小于等于0的记录",
+    "retained_for_review": "IQR统计异常但仍可能是真实大额采购的记录"
+  },
+  "monthly_average_actual_amount": 43434.975714285705
+}
