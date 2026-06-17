@@ -1,10 +1,7 @@
 """按原报告模板版式生成最终 Word 报告。
 
-正文内容与 `Python数据收集与分析期末考查报告.md` 保持一致：
-套用学校模板的封面、表格框和签字栏，在"项目过程"单元格内按《评分标准》
-逐项填入"评分要求 → 实现方式 → 运行结果"，并插入月度、星期、Top10 数据表、
-三张分析图和评分点对照总览表。
-"""
+正文内容以期末报告叙述风格组织，在模板框架内按章节填入实现思路与关键代码片段，
+同时保留月度、星期、Top10 数据表和三张分析图。"""
 
 from __future__ import annotations
 
@@ -15,7 +12,7 @@ from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Inches, Pt
+from docx.shared import Inches, Pt, RGBColor
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -118,6 +115,21 @@ def _fill_table_cell(cell, text: str, bold: bool = False, align=None) -> None:
         paragraph.alignment = align
     run = paragraph.add_run(text)
     set_run_font(run, size=10, bold=bold)
+
+
+def add_code_block(cell, code: str) -> None:
+    """在单元格内插入代码块：等宽字体 + 灰色底纹。"""
+    p = cell.add_paragraph()
+    p.paragraph_format.space_after = Pt(4)
+    p.paragraph_format.left_indent = Inches(0.2)
+    shd = OxmlElement("w:shd")
+    shd.set(qn("w:fill"), "F0F0F0")
+    shd.set(qn("w:val"), "clear")
+    p._element.get_or_add_pPr().append(shd)
+    run = p.add_run(code.strip())
+    run.font.name = "Consolas"
+    run.font.size = Pt(8.5)
+    run.font.color.rgb = RGBColor(0x1A, 0x1A, 0x2E)
 
 
 def add_data_table(
@@ -246,289 +258,195 @@ def fill_main_table(document: Document, results: dict[str, object]) -> None:
         "并形成可用于答辩的报告与图表。",
     )
 
-    add_paragraph(process_cell, "项目过程（按评分标准逐项说明）：", bold=True)
-    add_paragraph(
-        process_cell,
-        "下面对照《评分标准》逐项说明，每一项给出评分要求、实现方式和运行结果。",
+    add_paragraph(process_cell, "项目过程：", bold=True)
+    add_paragraph(process_cell,
+        "以下按分析流程顺序，从数据加载、清洗到统计和可视化，阐述实现思路与关键代码。"
     )
 
-    # （一）数据加载（5 分）
-    add_score_item(
-        process_cell,
-        "（一）数据加载（5 分）",
-        "采用合适的方法把本地文件中的数据加载至 Python 环境。",
-        "data_loading.py 的 load_sales_data() 使用 pandas.read_excel() 读取 "
-        "exam-materials/data/药品销售数据.xlsx，并在加载后校验必要字段是否齐全，"
-        "文件或字段缺失时直接抛出清晰错误。",
-        f"成功读取原始数据 {row_count} 行、{column_count} 列。",
+    # ---- 1. 数据加载 ----
+    add_paragraph(process_cell, "1. 数据加载与概览", bold=True)
+    add_paragraph(process_cell,
+        f"原始数据共 {row_count} 行、{column_count} 列，字段包括购药时间、社保卡号、商品信息、"
+        "销售数量与金额、星期等。使用 load_sales_data() 读取 Excel 并校验字段完整性："
+    )
+    add_code_block(process_cell,
+"""def load_sales_data(data_path: Path) -> pd.DataFrame:
+    data = pd.read_excel(data_path)
+    missing = [c for c in EXPECTED_COLUMNS if c not in data.columns]
+    if missing:
+        raise ValueError(f"缺少列：{', '.join(missing)}")
+    return data""")
+    add_paragraph(process_cell,
+        "通过 inspect_raw_data() 查看缺失情况：购药时间、社保卡号、星期各缺 2 条，"
+        "其余关键字段各缺 1 条；原始重复行 0。"
     )
 
-    # （二）数据概览（5 分）
-    add_paragraph(process_cell, "（二）数据概览（5 分）", bold=True)
-    add_score_item(
-        process_cell,
-        "1. 正确查看数据基本信息（3 分）",
-        "正确查看数据基本信息。",
-        "data_overview.py 的 inspect_raw_data() 输出行列数、字段列表、字段类型、"
-        "缺失值数量和重复值数量。",
-        f"确认数据规模为 {row_count} 行 × {column_count} 列，原始重复行数量为 "
-        f"{duplicate_removed}；购药时间、社保卡号、星期各缺失 2 条，其余关键字段各缺失 1 条。",
+    # ---- 2. 列名修正 ----
+    add_paragraph(process_cell, "2. 列名修正", bold=True)
+    add_paragraph(process_cell,
+        "按考查要求将“购药时间”改为“销售时间”，并插入源数据行号字段便于异常回溯："
     )
-    add_score_item(
-        process_cell,
-        "2. 修正列名（2 分）",
-        "修正列名。",
-        "data_overview.py 的 rename_sales_time() 将原始列名“购药时间”修正为“销售时间”，"
-        "并保留“源数据行号”便于在异常记录表中追溯原始 Excel 行。",
-        "列名由“购药时间”统一为“销售时间”，后续时间相关处理均基于该列。",
+    add_code_block(process_cell,
+"""def rename_sales_time(data):
+    renamed = data.rename(columns={"购药时间": "销售时间"}).copy()
+    renamed.insert(0, "源数据行号", renamed.index + 2)
+    return renamed""")
+
+    # ---- 3. 数据清洗 ----
+    add_paragraph(process_cell, "3. 数据清洗与异常处理", bold=True)
+
+    add_paragraph(process_cell, "3.1 重复值与缺失值处理", bold=True)
+    add_paragraph(process_cell,
+        "按业务字段检测重复行（本次为 0）。缺失值分两类：必需字段（销售时间、商品名称、"
+        "销售数量、金额）缺失直接剔除；社保卡号缺失用“未知社保卡”保留，避免误删正常销售。"
     )
 
-    # （三）数据处理（30 分）
-    add_paragraph(process_cell, "（三）数据处理（30 分）", bold=True)
-    add_score_item(
-        process_cell,
-        "1. 重复值处理（5 分）",
-        "重复值处理。",
-        "data_cleaning.py 基于销售时间、社保卡号、商品编码、商品名称、销售数量、"
-        "应收金额、实收金额、星期这一组业务字段检测并删除重复记录。",
-        f"本次数据中重复记录为 {duplicate_removed} 行，无需删除。",
-    )
-    add_score_item(
-        process_cell,
-        "2. 缺失值处理（5 分）",
-        "缺失值处理。",
-        "对分析必需字段（销售时间、商品名称、销售数量、应收金额、实收金额）缺失的记录"
-        "予以剔除；对不影响销售统计的社保卡号缺失记录，用“未知社保卡”标记保留。",
-        "必需字段缺失的记录被剔除（计入异常值处理的剔除总量），社保卡号缺失的记录保留并标记。",
+    add_paragraph(process_cell, "3.2 类型统一", bold=True)
+    add_code_block(process_cell,
+"""def normalize_types(data):
+    data["销售时间"] = pd.to_datetime(data["销售时间"], errors="coerce")
+    for col in ["销售数量","应收金额","实收金额"]:
+        data[col] = pd.to_numeric(data[col], errors="coerce")
+    return data""")
+    add_paragraph(process_cell,
+        "errors='coerce' 将非法值转为 NaN，为后续检测提供统一入口。星期不从原始列取，"
+        "而是由标准化后的销售时间重算，避免 2022-02-29 等错误值。"
     )
 
-    add_paragraph(process_cell, "3. 异常值处理（20 分）", bold=True)
-    add_paragraph(
-        process_cell,
-        "本项 20 分由四个子项构成：销售数据类型统一为整型（5 分）、销售时间类型统一为 "
-        "DateTime 类型（5 分）、检测异常值（5 分）、处理异常值（5 分）。其中两项类型统一"
-        "是异常值检测的前置步骤——只有先把字段转为正确类型，才能准确判断数量/金额是否为非正值、"
-        "日期是否有效。",
+    add_paragraph(process_cell, "3.3 异常值检测与处理", bold=True)
+    add_paragraph(process_cell,
+        "异常值分两类处理："
+        "（1）确定错误——销售时间无效、商品名称缺失、数量/金额 ≤ 0 的记录，直接剔除；"
+        "（2）统计异常——使用 IQR 方法标记大额/大数量记录，保留复核而非删除，"
+        "因为医药销售中存在真实的批量采购。"
     )
-    add_score_item(
-        process_cell,
-        "(1) 销售数据类型统一为整型（5 分）",
-        "销售数据类型统一为整型。",
-        "data_cleaning.py 将销售数量转换为整型，应收金额、实收金额转换为数值类型，"
-        "保证金额可参与求和与均值计算。",
-        "销售数量统一为整型，金额字段统一为数值类型。",
-    )
-    add_score_item(
-        process_cell,
-        "(2) 销售时间类型统一为 DateTime 类型（5 分）",
-        "销售时间类型统一为 DateTime 类型。",
-        "data_cleaning.py 使用 pandas.to_datetime() 将销售时间转换为 DateTime 类型；"
-        "星期不直接采用原始列，而是根据标准化后的销售时间重新计算，避免 2022-02-29 "
-        "这类错误星期值影响统计。",
-        "销售时间统一为 DateTime 类型，无效日期可被识别；星期由销售时间重算。",
-    )
-    add_score_item(
-        process_cell,
-        "(3) 检测异常值（5 分）",
-        "检测异常值。",
-        "分两类检测：确定错误（无效日期、关键字段缺失、销售数量或金额小于等于 0）；"
-        "统计异常（使用 IQR 四分位距方法标记大额或大数量记录）。",
-        f"IQR 统计异常共标记 {outlier_marks} 条，已输出到 "
-        "generated/tables/anomaly_rows.csv 供复核。",
-    )
-    add_score_item(
-        process_cell,
-        "(4) 处理异常值（5 分）",
-        "处理异常值。",
-        "确定错误记录予以剔除；IQR 统计异常的大额/大数量记录保留复核，因为医药销售中"
-        "可能存在真实批量购买，不能只因数值大就删除。",
-        f"最终剔除确定错误记录 {definite_removed} 行，清洗后保留 {cleaned_rows} 行有效数据；"
-        f"统计异常的 {outlier_marks} 条不直接删除，而是输出异常表供复核。",
+    add_code_block(process_cell,
+"""def _detect_outliers(data):
+    for col in ["销售数量","应收金额","实收金额"]:
+        q1, q3 = data[col].quantile(0.25), data[col].quantile(0.75)
+        iqr = q3 - q1
+        lo, hi = q1 - 1.5*iqr, q3 + 1.5*iqr
+        mask = (data[col] < lo) | (data[col] > hi)
+        ...""")
+    add_paragraph(process_cell,
+        f"最终剔除确定错误 {definite_removed} 行，保留 {cleaned_rows} 行；IQR 标记 "
+        f"{outlier_marks} 条输出到 anomaly_rows.csv 供复核。"
     )
 
-    # （四）数据分析（30 分）
-    add_paragraph(process_cell, "（四）数据分析（30 分）", bold=True)
-    add_score_item(
-        process_cell,
-        "1. 将数据按销售时间排序并重置行索引（5 分）",
-        "将数据按照销售时间进行排序，排序之后重置行索引。",
-        "data_cleaning.py 将清洗后的数据按销售时间从小到大排序，并重置行索引（reset_index）。",
-        f"数据按销售时间升序排列、行索引连续，分析时间范围为 {date_min} 至 {date_max}。",
-    )
+    add_paragraph(process_cell, "3.4 清洗总控流水线", bold=True)
+    add_code_block(process_cell,
+"""def clean_sales_data(raw):
+    renamed = rename_sales_time(raw)
+    dedup = renamed.drop_duplicates(subset=RENAMED_COLUMNS)
+    norm = normalize_types(dedup)
+    mask = _detect_required_field_errors(norm)
+    cleaned = norm[~mask].copy()
+    cleaned["星期"] = cleaned["销售时间"].dt.dayofweek.map(WEEKDAY_NAMES)
+    cleaned = cleaned.sort_values("销售时间").reset_index(drop=True)
+    return CleanedData(...)""")
 
-    add_paragraph(process_cell, "2. 计算月均销售金额（5 分）", bold=True)
-    add_labeled(process_cell, "评分要求：", "计算月均销售金额。")
-    add_labeled(
-        process_cell,
-        "实现方式：",
-        "monthly_sales.py 按月份对实收金额进行分组聚合，并计算月均实收金额。",
-    )
-    add_labeled(
-        process_cell,
-        "运行结果：",
-        f"各月份销售统计如下表，月均实收金额为 {_money(monthly_avg)} 元，"
-        f"其中 {best_month['销售月份']} 的实收金额最高，为 {_money(best_month['实收金额合计'])} 元。",
+    # ---- 4. 数据分析 ----
+    add_paragraph(process_cell, "4. 数据分析", bold=True)
+
+    add_paragraph(process_cell, "4.1 月度销售统计", bold=True)
+    add_code_block(process_cell,
+"""def compute_monthly_summary(cleaned):
+    working["月份"] = working["销售时间"].dt.to_period("M").astype(str)
+    monthly = working.groupby("月份").agg(
+        订单数=("商品名称","count"), 销量=("销售数量","sum"),
+        实收=("实收金额","sum")).sort_values("月份")
+    return monthly, float(monthly["实收"].mean())""")
+    add_paragraph(process_cell,
+        f"月均实收金额 {_money(monthly_avg)} 元，"
+        f"{best_month['销售月份']} 最高（{_money(best_month['实收金额合计'])} 元），"
+        "7 月最低（仅 19 天数据）。"
     )
     add_data_table(
-        process_cell,
-        ["月份", "订单数", "销售数量", "实收金额"],
-        [
-            [
-                str(row["销售月份"]),
-                _int(row["订单数"]),
-                _int(row["销售数量合计"]),
-                _money(row["实收金额合计"]),
-            ]
-            for _, row in monthly.iterrows()
-        ],
-        aligns=["l", "r", "r", "r"],
+        process_cell, ["月份", "订单数", "销量", "实收金额"],
+        [[str(r["销售月份"]),_int(r["订单数"]),_int(r["销售数量合计"]),_money(r["实收金额合计"])]
+         for _, r in monthly.iterrows()],
+        aligns=["l","r","r","r"],
     )
 
-    add_paragraph(process_cell, "3. 绘制销售时间与实收金额的关系（5 分）", bold=True)
-    add_labeled(process_cell, "评分要求：", "绘制销售时间与实收金额的关系。")
-    add_labeled(
-        process_cell,
-        "实现方式：",
-        "time_actual_relationship.py 汇总每日实收金额并生成销售时间与实收金额关系图。",
+    add_paragraph(process_cell, "4.2 销售时间与实收金额关系", bold=True)
+    add_code_block(process_cell,
+"""def compute_daily_actual(cleaned):
+    working["日期"] = working["销售时间"].dt.date
+    return working.groupby("日期").agg(
+        订单数=("商品名称","count"), 实收=("实收金额","sum")
+    ).sort_values("日期")""")
+    add_paragraph(process_cell,
+        "每日实收金额波动明显，部分日期存在高峰——通常与大额/批量购药有关，"
+        "这也印证了清洗中保留 IQR 统计异常而非直接删除的合理性。"
     )
-    add_labeled(
-        process_cell,
-        "运行结果：",
-        "每日实收金额波动明显，部分日期存在高峰；高峰通常与大额或批量购药记录有关，"
-        "因此在清洗中作为统计异常保留复核，未直接删除。",
-    )
-    add_picture(
-        process_cell,
-        FIGURES_DIR / "sales_time_actual_amount.png",
-        "图 1 销售时间与每日实收金额关系",
-    )
+    add_picture(process_cell, FIGURES_DIR / "sales_time_actual_amount.png",
+                "图 1 销售时间与每日实收金额关系")
 
-    add_paragraph(process_cell, "4. 根据星期分组统计销售数量、应收和实收金额（5 分）", bold=True)
-    add_labeled(
-        process_cell, "评分要求：", "根据星期分组，统计每星期销售数量、应收和实收金额的关系。"
-    )
-    add_labeled(
-        process_cell,
-        "实现方式：",
-        "weekday_sales.py 按星期（由销售时间重算）分组，统计订单数、销售数量、应收金额和"
-        "实收金额，并生成星期统计图。",
-    )
-    add_labeled(
-        process_cell,
-        "运行结果：",
-        f"各星期销售统计如下表，{best_weekday['星期']}的订单数、销售数量、应收金额和"
-        "实收金额均较高，是一周中销售表现最突出的日期。",
+    add_paragraph(process_cell, "4.3 星期分组统计", bold=True)
+    add_code_block(process_cell,
+"""def compute_weekday_summary(cleaned):
+    working["星期"] = pd.Categorical(
+        working["星期"], categories=WEEKDAY_ORDER, ordered=True)
+    return working.groupby("星期", observed=False).agg(
+        销量=("销售数量","sum"), 实收=("实收金额","sum")).reset_index()""")
+    add_paragraph(process_cell,
+        f"{best_weekday['星期']} 的订单数、销量和实收金额均为一周最高，"
+        "星期四各项相对较低。"
     )
     add_data_table(
-        process_cell,
-        ["星期", "订单数", "销售数量", "应收金额", "实收金额"],
-        [
-            [
-                str(row["星期"]),
-                _int(row["订单数"]),
-                _int(row["销售数量合计"]),
-                _money(row["应收金额合计"]),
-                _money(row["实收金额合计"]),
-            ]
-            for _, row in weekday.iterrows()
-        ],
-        aligns=["l", "r", "r", "r", "r"],
+        process_cell, ["星期", "订单数", "销量", "实收金额"],
+        [[str(r["星期"]),_int(r["订单数"]),_int(r["销售数量合计"]),_money(r["实收金额合计"])]
+         for _, r in weekday.iterrows()],
+        aligns=["l","r","r","r"],
     )
-    add_picture(
-        process_cell,
-        FIGURES_DIR / "weekday_sales_summary.png",
-        "图 2 星期分组销售统计",
-    )
+    add_picture(process_cell, FIGURES_DIR / "weekday_sales_summary.png",
+                "图 2 星期分组销售统计")
 
-    add_paragraph(process_cell, "5. 销售数量前十位药品（10 分）", bold=True)
-    add_labeled(
-        process_cell,
-        "评分要求：",
-        "根据商品名称分组，统计销售数量前十位的药品，绘制销售数量前十位的药品名称的销售数量关系。",
-    )
-    add_labeled(
-        process_cell,
-        "实现方式：",
-        "top_products.py 按商品名称分组统计销售数量，取前十位药品并生成 Top 10 图表。",
-    )
-    add_labeled(
-        process_cell,
-        "运行结果：",
-        f"销售数量前十位药品如下表，销售数量最高的是 {best_product['商品名称']}"
-        f"（销售数量 {_int(best_product['销售数量合计'])}）；"
-        "不同药品的价格差异会影响实收金额排名。",
+    add_paragraph(process_cell, "4.4 Top 10 药品", bold=True)
+    add_code_block(process_cell,
+"""def compute_top_products(cleaned, limit=10):
+    return cleaned.groupby("商品名称").agg(
+        订单数=("商品名称","count"), 销量=("销售数量","sum"),
+        实收=("实收金额","sum")
+    ).sort_values(["销量","实收"], ascending=[False,False]).head(limit)""")
+    add_paragraph(process_cell,
+        f"销量最高：{best_product['商品名称']}（{_int(best_product['销售数量合计'])} 件）；"
+        "开博通销量第二但金额最高（37080.36 元），说明价格差异影响金额排名。"
     )
     add_data_table(
-        process_cell,
-        ["排名", "商品名称", "订单数", "销售数量", "实收金额"],
-        [
-            [
-                str(rank),
-                str(row["商品名称"]),
-                _int(row["订单数"]),
-                _int(row["销售数量合计"]),
-                _money(row["实收金额合计"]),
-            ]
-            for rank, (_, row) in enumerate(top_products.iterrows(), start=1)
-        ],
-        aligns=["c", "l", "r", "r", "r"],
+        process_cell, ["排名", "商品名称", "销量", "实收"],
+        [[str(i+1), str(r["商品名称"]),_int(r["销售数量合计"]),_money(r["实收金额合计"])]
+         for i, (_, r) in enumerate(top_products.iterrows())],
+        aligns=["c","l","r","r"],
     )
-    add_picture(
-        process_cell,
-        FIGURES_DIR / "top10_products_by_quantity.png",
-        "图 3 销售数量前十位药品",
+    add_picture(process_cell, FIGURES_DIR / "top10_products_by_quantity.png",
+                "图 3 销售数量前十位药品")
+
+    # ---- 5. 可视化配置 ----
+    add_paragraph(process_cell, "5. 可视化配置", bold=True)
+    add_code_block(process_cell,
+"""def configure_plot_style():
+    sns.set_theme(style="whitegrid")
+    plt.rcParams["font.sans-serif"] = [
+        "WenQuanYi Zen Hei", "Noto Sans CJK SC", "SimHei"]
+    plt.rcParams["axes.unicode_minus"] = False""")
+    add_paragraph(process_cell,
+        "统一配置中文字体和样式，所有图表 180 DPI 输出到 generated/figures/。"
     )
 
-    # （五）项目汇报（30 分）
-    add_paragraph(process_cell, "（五）项目汇报（30 分）", bold=True)
-    add_labeled(
-        process_cell,
-        "评分要求：",
-        "根据程序实施的思路完成对项目的汇报，每人汇报 3 分钟，内容主要包括代码完成思路"
-        "及相关技术的应用和实现。",
-    )
-    add_labeled(
-        process_cell,
-        "实现方式：",
-        "汇报材料整理为 答辩.md（3 分钟口头汇报稿）、docs/defense-outline.md（答辩提纲）"
-        "和 docs/defense-qa.md（预设问答）。",
-    )
-    add_labeled(
-        process_cell,
-        "汇报主线：",
-        "按“数据加载 → 数据概览与列名修正 → 数据处理（重复值、缺失值、类型统一、异常值"
-        "检测与处理）→ 数据分析（排序、月均、时间关系、星期分组、Top 10）→ 可视化”讲解；"
-        "技术上重点说明 Pandas 的 read_excel/to_datetime/分组聚合、NumPy 的 IQR 计算、"
-        "Matplotlib/Seaborn 的中文图表配置，其中异常值处理策略是讲解重点。",
+    # ---- 6. 项目结构 ----
+    add_paragraph(process_cell, "6. 项目模块结构", bold=True)
+    add_code_block(process_cell,
+"""pipeline.py  → run_analysis() 按序调度：
+  load_sales_data() → clean_sales_data() →
+  compute_monthly_summary() → compute_weekday_summary() →
+  compute_top_products() → compute_daily_actual() →
+  write_outputs()""")
+    add_paragraph(process_cell,
+        "命令行入口 main.py 统一运行，各模块独立封装，便于答辩逐项讲解。"
     )
 
-    # 评分点对照总览表
-    add_paragraph(process_cell, "评分点对照总览表：", bold=True)
-    add_data_table(
-        process_cell,
-        ["评分项", "分值", "对应实现（模块/文件）", "报告位置"],
-        [
-            ["数据加载", "5", "data_loading.py load_sales_data()", "（一）"],
-            ["数据概览 — 正确查看数据基本信息", "3", "data_overview.py inspect_raw_data()", "（二）1"],
-            ["数据概览 — 修正列名", "2", "data_overview.py rename_sales_time()", "（二）2"],
-            ["数据处理 — 重复值处理", "5", "data_cleaning.py", "（三）1"],
-            ["数据处理 — 缺失值处理", "5", "data_cleaning.py", "（三）2"],
-            ["异常值处理 — 销售数据类型统一为整型", "5", "data_cleaning.py", "（三）3(1)"],
-            ["异常值处理 — 销售时间统一为 DateTime", "5", "data_cleaning.py", "（三）3(2)"],
-            ["异常值处理 — 检测异常值", "5", "data_cleaning.py（IQR）", "（三）3(3)"],
-            ["异常值处理 — 处理异常值", "5", "data_cleaning.py", "（三）3(4)"],
-            ["数据分析 — 按销售时间排序并重置索引", "5", "data_cleaning.py", "（四）1"],
-            ["数据分析 — 计算月均销售金额", "5", "monthly_sales.py", "（四）2"],
-            ["数据分析 — 销售时间与实收金额关系", "5", "time_actual_relationship.py", "（四）3"],
-            ["数据分析 — 星期分组统计", "5", "weekday_sales.py", "（四）4"],
-            ["数据分析 — 销售数量前十位药品", "10", "top_products.py", "（四）5"],
-            ["项目汇报", "30", "答辩.md、docs/defense-outline.md、docs/defense-qa.md", "（五）"],
-            ["总分", "100", "—", "—"],
-        ],
-        aligns=["l", "c", "l", "c"],
-    )
-
-    # 单元格内最后一个元素若为表格，补一个空段落，避免 Word 文档结构异常。
+    # 单元格内补空段落，避免 Word 结构异常
     process_cell.add_paragraph()
 
 
