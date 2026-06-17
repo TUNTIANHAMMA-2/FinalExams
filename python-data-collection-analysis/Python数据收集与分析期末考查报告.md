@@ -1,239 +1,343 @@
 # 《Python数据收集与分析》期末考查报告
 
-> 本报告按《Python数据收集与分析评分标准》的项目与分值逐项组织。第四章"按评分标准逐项说明"是核心，对评分标准中的每一个评分点，统一给出**评分要求 → 实现方式 → 运行结果**三部分，便于逐项对照评分。
+## 一、项目概述
 
-## 一、项目基本信息
+本次期末考查围绕一份药品销售数据集，使用 Python 完成从数据加载、清洗、异常处理到统计分析和可视化的完整流程。数据文件为 `exam-materials/data/药品销售数据.xlsx`，共 6578 条记录、8 个字段，涵盖销售时间、社保卡号、商品信息、销售数量、应收/实收金额等。分析时间范围为 2022 年 1 月至 7 月。
 
-| 项目 | 内容 |
-| --- | --- |
-| 项目名称 | 药品销售数据处理与分析 |
-| 课程 | Python 数据收集与分析 |
-| 数据文件 | `exam-materials/data/药品销售数据.xlsx` |
-| 实现方式 | Python、Pandas、NumPy、Matplotlib、Seaborn |
-| 运行入口 | `python main.py` |
+项目采用模块化设计，将数据加载、概览、清洗、统计和可视化分别封装在独立 Python 文件中，由统一的流水线模块调度执行。整体技术栈为 Pandas + NumPy + Matplotlib + Seaborn。
 
-## 二、项目目的
+## 二、数据加载与概览
 
-本项目围绕药品销售数据完成一次完整的数据分析流程，目标包括：
+### 2.1 数据加载
 
-1. 掌握使用 Pandas 读取本地 Excel 数据的方法。
-2. 能够查看数据结构、字段类型、缺失值和重复值情况。
-3. 能够对销售时间、销售数量、应收金额和实收金额等字段进行规范化处理。
-4. 能够识别并处理缺失值、无效日期、负数销售等异常数据。
-5. 能够使用分组聚合完成月度、星期、商品维度的销售统计。
-6. 能够使用 Matplotlib/Seaborn 生成可读的分析图表。
-7. 能够将分析过程、结果和代码思路整理成报告和答辩材料。
+数据加载模块使用 Pandas 的 `read_excel()` 函数读取本地 Excel 文件，并在加载后校验必要字段是否齐全，避免后续分析因缺列而产生隐蔽错误：
 
-## 三、数据概览（原始数据情况）
+```python
+def load_sales_data(data_path: Path) -> pd.DataFrame:
+    """读取 Excel 原始数据并校验必要字段。"""
+    if not data_path.exists():
+        raise FileNotFoundError(f"找不到数据文件：{data_path}")
 
-本章先说明原始数据的整体情况，作为第四章逐项处理的背景。原始数据共 6578 行、8 列，字段如下：
+    data = pd.read_excel(data_path)
+    missing_columns = [col for col in EXPECTED_COLUMNS if col not in data.columns]
+    if missing_columns:
+        raise ValueError(f"数据缺少必要列：{', '.join(missing_columns)}")
+    return data
+```
 
-| 字段 | 含义 |
-| --- | --- |
-| 购药时间 | 原始购买日期，后续修正为销售时间 |
-| 社保卡号 | 顾客社保卡标识 |
-| 商品编码 | 药品编码 |
-| 商品名称 | 药品名称 |
-| 销售数量 | 单笔销售数量 |
-| 应收金额 | 按价格计算的应收金额 |
-| 实收金额 | 实际收到金额 |
-| 星期 | 原始星期信息 |
+成功读取后获得 6578 行 × 8 列的原始数据，字段包括购药时间、社保卡号、商品编码、商品名称、销售数量、应收金额、实收金额和星期。
+
+### 2.2 数据概览
+
+通过 `inspect_raw_data()` 函数对原始数据进行概览检查，输出行列数、字段类型、缺失值统计和重复行数量：
+
+```python
+def inspect_raw_data(data: pd.DataFrame) -> dict[str, Any]:
+    """返回行列数、字段元数据、缺失值数量和重复行数量。"""
+    return {
+        "row_count": int(len(data)),
+        "column_count": int(len(data.columns)),
+        "columns": list(data.columns),
+        "dtypes": {column: str(dtype) for column, dtype in data.dtypes.items()},
+        "missing_counts": {
+            column: int(count) for column, count in data.isna().sum().items()
+        },
+        "duplicate_rows": int(data.duplicated().sum()),
+    }
+```
 
-原始数据存在以下质量问题（均在第四章逐项处理）：
+检查结果表明：原始数据中"购药时间"和"社保卡号"各缺失 2 条，"商品编码""商品名称""销售数量""应收金额""实收金额"各缺失 1 条，"星期"缺失 2 条；原始重复行数量为 0。
 
-- `购药时间` 缺失 2 条。
-- `社保卡号` 缺失 2 条。
-- `商品编码`、`商品名称`、`销售数量`、`应收金额`、`实收金额` 各缺失 1 条。
-- `星期` 缺失 2 条，且存在 `2022-02-29` 这样的错误星期值。
-- 销售数量、应收金额和实收金额中存在小于或等于 0 的记录。
-- 原始重复行数量为 0。
+### 2.3 列名修正
 
-## 四、按评分标准逐项说明
+按照考查要求，将原始列名"购药时间"统一修正为"销售时间"。同时保留原始 Excel 行号作为辅助字段，便于在异常记录表中追溯数据来源：
 
-本章严格对照《评分标准》的项目与分值逐项展开，每一项给出**评分要求 → 实现方式 → 运行结果**。
+```python
+def rename_sales_time(data: pd.DataFrame) -> pd.DataFrame:
+    """按照考查要求将"购药时间"改名为"销售时间"。"""
+    renamed = data.rename(columns={ORIGINAL_DATE_COLUMN: SALES_TIME_COLUMN}).copy()
+    renamed.insert(0, "源数据行号", renamed.index + 2)
+    return renamed
+```
 
-### （一）数据加载（5 分）
+## 三、数据清洗与异常处理
+
+数据清洗是本次分析的核心环节，包含重复值处理、缺失值处理、类型统一、异常值检测与处理四个步骤。
 
-- **评分要求**：采用合适的方法把本地文件中的数据加载至 Python 环境。
-- **实现方式**：`data_loading.py` 的 `load_sales_data()` 使用 `pandas.read_excel()` 读取 `exam-materials/data/药品销售数据.xlsx`，并在加载后校验必要字段是否齐全；若文件缺失或字段缺失，程序直接抛出清晰错误，避免后续分析产生错误结果。
-- **运行结果**：成功读取原始数据 **6578 行、8 列**，进入后续处理流程。
+### 3.1 重复值处理
+
+按业务字段（销售时间、社保卡号、商品编码、商品名称、销售数量、应收金额、实收金额、星期）检测重复记录。本次数据中重复行数量为 0，无需删除。
 
-### （二）数据概览（5 分）
+### 3.2 类型统一
+
+在进行异常值检测之前，需要先将字段转换为正确的数据类型。`normalize_types()` 函数将销售时间转为 DateTime 类型，将销售数量和金额字段转为数值类型：
+
+```python
+def normalize_types(data: pd.DataFrame) -> pd.DataFrame:
+    """将销售日期和数值字段转换为便于分析的数据类型。"""
+    normalized = data.copy()
+    normalized[SALES_TIME_COLUMN] = pd.to_datetime(
+        normalized[SALES_TIME_COLUMN], errors="coerce"
+    )
+    for column in NUMERIC_COLUMNS:
+        normalized[column] = pd.to_numeric(normalized[column], errors="coerce")
+    return normalized
+```
 
-#### 1. 正确查看数据基本信息（3 分）
+其中 `errors="coerce"` 参数确保无法转换的值被设为 NaN 而非抛出异常，为后续缺失值检测提供统一入口。原始数据中的"星期"列存在 `2022-02-29` 这样的错误值，因此不直接采用原始星期列，而是根据标准化后的销售时间重新计算星期信息：
 
-- **评分要求**：正确查看数据基本信息。
-- **实现方式**：`data_overview.py` 的 `inspect_raw_data()` 输出数据的行列数、字段列表、字段类型、缺失值数量和重复值数量。
-- **运行结果**：确认数据规模为 6578 行 × 8 列，原始重复行数量为 0；各字段缺失情况为——`购药时间`、`社保卡号`、`星期` 各缺失 2 条，`商品编码`、`商品名称`、`销售数量`、`应收金额`、`实收金额` 各缺失 1 条（详见第三章）。
+```python
+cleaned["星期"] = cleaned[SALES_TIME_COLUMN].dt.dayofweek.map(WEEKDAY_NAMES)
+```
 
-#### 2. 修正列名（2 分）
+### 3.3 异常值检测
 
-- **评分要求**：修正列名。
-- **实现方式**：`data_overview.py` 的 `rename_sales_time()` 根据考查要求，将原始列名 `购药时间` 修正为 `销售时间`；同时保留 `源数据行号`，便于在异常记录表中追溯原始 Excel 行。
-- **运行结果**：列名由 `购药时间` 统一为 `销售时间`，后续所有时间相关处理均基于该列。
+异常值检测分为两类：
 
-### （三）数据处理（30 分）
+**确定错误**——无法参与销售分析的记录，通过 `_detect_required_field_errors()` 函数识别：
 
-#### 1. 重复值处理（5 分）
-
-- **评分要求**：重复值处理。
-- **实现方式**：`data_cleaning.py` 基于 `销售时间、社保卡号、商品编码、商品名称、销售数量、应收金额、实收金额、星期` 这一组业务字段检测并删除重复记录。
-- **运行结果**：本次数据中重复记录为 **0 行**，无需删除。
-
-#### 2. 缺失值处理（5 分）
-
-- **评分要求**：缺失值处理。
-- **实现方式**：`data_cleaning.py` 将缺失值分两类处理——
-  - 对分析必需字段缺失的记录直接剔除，包括 `销售时间`、`商品名称`、`销售数量`、`应收金额`、`实收金额`；
-  - 对不影响销售统计的 `社保卡号` 缺失记录，用 `未知社保卡` 标记保留。
-- **运行结果**：必需字段缺失的记录被剔除（计入第（4）项的剔除总量），社保卡号缺失的记录被保留并标记，避免误删有效销售。
-
-#### 3. 异常值处理（20 分）
-
-> 按评分标准，本项 20 分由以下四个子项构成：销售数据类型统一为整型（5 分）、销售时间类型统一为 DateTime 类型（5 分）、检测异常值（5 分）、处理异常值（5 分）。其中两项"类型统一"是异常值检测的前置步骤——只有先把字段转为正确类型，才能准确判断数量/金额是否为非正值、日期是否有效。
-
-##### (1) 销售数据类型统一为整型（5 分）
-
-- **评分要求**：销售数据类型统一为整型。
-- **实现方式**：`data_cleaning.py` 将 `销售数量` 转换为整型；`应收金额`、`实收金额` 转换为数值类型，保证金额可参与求和与均值计算。
-- **运行结果**：`销售数量` 统一为整型，金额字段统一为数值类型，为后续数量/金额异常判断提供正确的数据基础。
-
-##### (2) 销售时间类型统一为 DateTime 类型（5 分）
-
-- **评分要求**：销售时间类型统一为 DateTime 类型。
-- **实现方式**：`data_cleaning.py` 使用 `pandas.to_datetime()` 将 `销售时间` 转换为 DateTime 类型；`星期` 不直接采用原始列，而是根据标准化后的 `销售时间` 重新计算，避免 `2022-02-29` 这类错误星期值影响统计。
-- **运行结果**：`销售时间` 统一为 DateTime 类型，无效日期可被识别；`星期` 由销售时间重算，保证星期分组统计的准确性。
-
-##### (3) 检测异常值（5 分）
-
-- **评分要求**：检测异常值。
-- **实现方式**：`data_cleaning.py` 把异常分为两类检测——
-  - **确定错误**：无效日期、关键字段缺失、`销售数量` 或金额小于等于 0 的记录；
-  - **统计异常**：使用 IQR（四分位距）方法标记大额或大数量记录。
-- **运行结果**：IQR 统计异常共标记 **2012 条**，已输出到 `generated/tables/anomaly_rows.csv` 供复核。
-
-##### (4) 处理异常值（5 分）
-
-- **评分要求**：处理异常值。
-- **实现方式**：对两类异常采用不同处理策略——
-
-  | 异常类型 | 处理方式 | 原因 |
-  | --- | --- | --- |
-  | 无效日期、关键字段缺失、销售数量/金额小于等于 0 | 剔除 | 这类记录无法代表正常销售行为 |
-  | IQR 统计异常的大额或大数量记录 | 保留复核 | 医药销售中可能存在真实批量购买，不能只因数值大就删除 |
-
-- **运行结果**：最终剔除确定错误记录 **68 行**，清洗后保留 **6510 行**有效数据；IQR 统计异常的 2012 条不直接删除，而是输出异常表供复核。
-
-### （四）数据分析（30 分）
-
-#### 1. 将数据按照销售时间排序并重置行索引（5 分）
-
-- **评分要求**：将数据按照销售时间进行排序，排序之后重置行索引。
-- **实现方式**：`data_cleaning.py` 将清洗后的数据按 `销售时间` 从小到大排序，并重置行索引（`reset_index`）。
-- **运行结果**：数据按销售时间升序排列、行索引连续，分析时间范围为 **2022-01-01 至 2022-07-19**。
-
-#### 2. 计算月均销售金额（5 分）
-
-- **评分要求**：计算月均销售金额。
-- **实现方式**：`monthly_sales.py` 按月份对实收金额进行分组聚合，并计算月均实收金额。
-- **运行结果**：
-
-  | 月份 | 订单数 | 销售数量 | 实收金额 |
-  | --- | ---: | ---: | ---: |
-  | 2022-01 | 1055 | 2527 | 49461.19 |
-  | 2022-02 | 742 | 1858 | 38790.38 |
-  | 2022-03 | 990 | 2225 | 41597.51 |
-  | 2022-04 | 1235 | 3012 | 48822.56 |
-  | 2022-05 | 952 | 2225 | 46925.27 |
-  | 2022-06 | 909 | 2328 | 48327.70 |
-  | 2022-07 | 627 | 1483 | 30120.22 |
-
-  月均实收金额为 **43434.98 元**，其中 2022-01 的实收金额最高，为 49461.19 元。
-
-#### 3. 绘制销售时间与实收金额的关系（5 分）
-
-- **评分要求**：绘制销售时间与实收金额的关系。
-- **实现方式**：`time_actual_relationship.py` 汇总每日实收金额并生成销售时间与实收金额关系图。
-- **运行结果**：
-
-  ![销售时间与每日实收金额关系](generated/figures/sales_time_actual_amount.png)
-
-  从每日实收金额图可以看到，不同日期之间销售波动明显，部分日期存在高峰值。这类高峰通常与大额或批量购药记录有关，因此在清洗中没有直接删除，而是作为统计异常保留复核。
-
-#### 4. 根据星期分组统计销售数量、应收和实收金额（5 分）
-
-- **评分要求**：根据星期分组，统计每星期销售数量、应收和实收金额的关系。
-- **实现方式**：`weekday_sales.py` 按 `星期`（由销售时间重算）分组，统计订单数、销售数量、应收金额和实收金额，并生成星期统计图。
-- **运行结果**：
-
-  | 星期 | 订单数 | 销售数量 | 应收金额 | 实收金额 |
-  | --- | ---: | ---: | ---: | ---: |
-  | 星期一 | 778 | 1847 | 41265.10 | 38123.47 |
-  | 星期二 | 976 | 2315 | 45814.40 | 41934.47 |
-  | 星期三 | 961 | 2373 | 49218.30 | 45466.81 |
-  | 星期四 | 692 | 1718 | 37885.30 | 35187.31 |
-  | 星期五 | 1160 | 2831 | 56446.30 | 51284.66 |
-  | 星期六 | 1028 | 2472 | 53786.70 | 48510.65 |
-  | 星期日 | 915 | 2102 | 46960.00 | 43537.46 |
-
-  ![星期分组统计](generated/figures/weekday_sales_summary.png)
-
-  星期五的订单数、销售数量、应收金额和实收金额均较高，是一周中销售表现最突出的日期。
-
-#### 5. 销售数量前十位药品（10 分）
-
-- **评分要求**：根据商品名称分组，统计销售数量前十位的药品，绘制销售数量前十位的药品名称的销售数量关系。
-- **实现方式**：`top_products.py` 按 `商品名称` 分组统计销售数量，取前十位药品并生成 Top 10 图表。
-- **运行结果**：
-
-  | 排名 | 商品名称 | 订单数 | 销售数量 | 实收金额 |
-  | ---: | --- | ---: | ---: | ---: |
-  | 1 | 苯磺酸氨氯地平片(安内真) | 892 | 1781 | 19081.44 |
-  | 2 | 开博通 | 615 | 1440 | 37080.36 |
-  | 3 | 酒石酸美托洛尔片(倍他乐克) | 548 | 1140 | 7919.82 |
-  | 4 | 硝苯地平片(心痛定) | 420 | 825 | 1108.99 |
-  | 5 | 苯磺酸氨氯地平片(络活喜) | 318 | 796 | 24251.04 |
-  | 6 | 复方利血平片(复方降压片) | 304 | 515 | 1397.38 |
-  | 7 | G琥珀酸美托洛尔缓释片(倍他乐克) | 195 | 509 | 8620.96 |
-  | 8 | 缬沙坦胶囊(代文) | 143 | 445 | 16774.77 |
-  | 9 | 非洛地平缓释片(波依定) | 154 | 375 | 10419.56 |
-  | 10 | 高特灵 | 124 | 373 | 1997.95 |
-
-  ![销售数量前十位药品](generated/figures/top10_products_by_quantity.png)
-
-  销售数量最高的是苯磺酸氨氯地平片(安内真)，销售数量为 1781；开博通销售数量排第二，但实收金额较高，说明不同药品的价格差异会影响金额排名。
-
-### （五）项目汇报（30 分）
-
-- **评分要求**：根据程序实施的思路完成对项目的汇报，每人汇报 3 分钟，内容主要包括代码完成思路及相关技术的应用和实现。
-- **实现方式**：汇报材料已整理为 `答辩.md`（3 分钟口头汇报稿）、`docs/defense-outline.md`（答辩提纲）和 `docs/defense-qa.md`（预设问答）。
-- **汇报主线**：按"数据加载 → 数据概览与列名修正 → 数据处理（重复值、缺失值、类型统一、异常值检测与处理）→ 数据分析（排序、月均、时间关系、星期分组、Top 10）→ 可视化"的顺序讲解；技术应用上重点说明 Pandas 的 `read_excel`/`to_datetime`/分组聚合、NumPy 的 IQR 计算、Matplotlib/Seaborn 的中文图表配置。其中**异常值处理策略**是讲解重点：确定错误（无效日期、负数销售、关键字段缺失）剔除，统计异常（大额/大数量）保留复核。
-
-## 五、个人总结
-
-通过本次项目，我完整实践了从数据读取、数据概览、数据清洗、异常处理、分组统计到图表生成的分析流程。项目中最需要注意的是异常值处理不能简单"一删了之"：负数销售、无效日期和关键字段缺失属于确定错误，应当剔除；但大额销售或大数量销售可能是真实业务现象，因此更适合作为统计异常保留复核。
-
-本项目最终形成了可运行代码、清洗数据、统计表、图表、报告和答辩文档，能够逐项对应《Python数据收集与分析》期末考查的评分标准。
-
-## 六、评分点对照总览表
-
-下表把评分标准中的每个评分点与本报告的实现和章节位置一一对应，分值合计 100 分。
-
-| 评分项 | 分值 | 对应实现（模块/文件） | 报告位置 |
-| --- | ---: | --- | --- |
-| 数据加载 | 5 | `data_loading.py` `load_sales_data()` | 四（一） |
-| 数据概览 — 正确查看数据基本信息 | 3 | `data_overview.py` `inspect_raw_data()` | 四（二）1 |
-| 数据概览 — 修正列名 | 2 | `data_overview.py` `rename_sales_time()` | 四（二）2 |
-| 数据处理 — 重复值处理 | 5 | `data_cleaning.py` | 四（三）1 |
-| 数据处理 — 缺失值处理 | 5 | `data_cleaning.py` | 四（三）2 |
-| 异常值处理 — 销售数据类型统一为整型 | 5 | `data_cleaning.py` | 四（三）3(1) |
-| 异常值处理 — 销售时间统一为 DateTime | 5 | `data_cleaning.py` | 四（三）3(2) |
-| 异常值处理 — 检测异常值 | 5 | `data_cleaning.py`（IQR） | 四（三）3(3) |
-| 异常值处理 — 处理异常值 | 5 | `data_cleaning.py` | 四（三）3(4) |
-| 数据分析 — 按销售时间排序并重置索引 | 5 | `data_cleaning.py` | 四（四）1 |
-| 数据分析 — 计算月均销售金额 | 5 | `monthly_sales.py` | 四（四）2 |
-| 数据分析 — 销售时间与实收金额关系 | 5 | `time_actual_relationship.py` | 四（四）3 |
-| 数据分析 — 星期分组统计 | 5 | `weekday_sales.py` | 四（四）4 |
-| 数据分析 — 销售数量前十位药品 | 10 | `top_products.py` | 四（四）5 |
-| 项目汇报 | 30 | `答辩.md`、`docs/defense-outline.md`、`docs/defense-qa.md` | 四（五） |
-| **总分** | **100** | — | — |
+```python
+def _detect_required_field_errors(data: pd.DataFrame) -> pd.Series:
+    """返回无法参与销售分析的记录掩码。"""
+    invalid_date = data[SALES_TIME_COLUMN].isna()
+    invalid_product = data["商品名称"].isna()
+    invalid_numeric = data[NUMERIC_COLUMNS].isna().any(axis=1)
+    non_positive_numeric = (data[NUMERIC_COLUMNS] <= 0).any(axis=1)
+    return invalid_date | invalid_product | invalid_numeric | non_positive_numeric
+```
+
+这类记录包括：销售时间缺失或无效、商品名称缺失、销售数量或金额字段缺失、销售数量或金额小于等于 0。
+
+**统计异常**——使用 IQR（四分位距）方法检测数值偏高的记录。对于每 个数值字段，计算 Q1 和 Q3，超出 [Q1 - 1.5×IQR, Q3 + 1.5×IQR] 范围的记录被标记为统计异常：
+
+```python
+def _detect_statistical_outliers(data: pd.DataFrame) -> pd.DataFrame:
+    """在剔除确定错误后检测 IQR 统计异常值。"""
+    outlier_parts: list[pd.DataFrame] = []
+    for column in NUMERIC_COLUMNS:
+        q1 = data[column].quantile(0.25)
+        q3 = data[column].quantile(0.75)
+        iqr = q3 - q1
+        lower_bound = q1 - 1.5 * iqr
+        upper_bound = q3 + 1.5 * iqr
+        mask = (data[column] < lower_bound) | (data[column] > upper_bound)
+        part = data.loc[mask].copy()
+        if part.empty:
+            continue
+        part["异常原因"] = (
+            f"{column}超出IQR范围[{lower_bound:.2f}, {upper_bound:.2f}]"
+        )
+        outlier_parts.append(part)
+    if not outlier_parts:
+        return pd.DataFrame()
+    return pd.concat(outlier_parts, ignore_index=True)
+```
+
+### 3.4 异常值处理
+
+对两类异常采用不同策略：确定错误（无效日期、负数销售、关键字段缺失）直接剔除，因为这些记录无法代表正常销售行为；IQR 统计异常的大额或大数量记录保留并输出到 `anomaly_rows.csv` 供复核，因为医药销售中可能存在真实的批量购买，不能仅因数值偏大就删除。
+
+最终剔除确定错误记录 68 行，清洗后保留 6510 行有效数据，IQR 统计异常标记 2012 条。
+
+### 3.5 清洗流程总控
+
+上述清洗步骤在 `clean_sales_data()` 函数中按顺序执行，最终返回一个 `CleanedData` 数据对象，包含原始数据、清洗后数据、被剔除行、统计异常行和质量摘要：
+
+```python
+def clean_sales_data(raw_data: pd.DataFrame) -> CleanedData:
+    """应用评分标准要求的全部清洗规则。"""
+    overview = inspect_raw_data(raw_data)
+    renamed = rename_sales_time(raw_data)
+
+    # 重复值处理
+    duplicate_count = int(renamed.duplicated(subset=RENAMED_DATA_COLUMNS).sum())
+    deduplicated = renamed.drop_duplicates(subset=RENAMED_DATA_COLUMNS).copy()
+
+    # 类型统一
+    normalized = normalize_types(deduplicated)
+
+    # 缺失和确定错误处理
+    invalid_mask = _detect_required_field_errors(normalized)
+    removed_rows = normalized.loc[invalid_mask].copy()
+    cleaned = normalized.loc[~invalid_mask].copy()
+    cleaned["销售数量"] = cleaned["销售数量"].round().astype("int64")
+
+    # 重算星期、排序并重置索引
+    cleaned["星期"] = cleaned[SALES_TIME_COLUMN].dt.dayofweek.map(WEEKDAY_NAMES)
+    cleaned = cleaned.sort_values(SALES_TIME_COLUMN).reset_index(drop=True)
+
+    statistical_outliers = _detect_statistical_outliers(cleaned)
+    return CleanedData(
+        raw=raw_data, renamed=renamed, cleaned=cleaned,
+        removed_rows=removed_rows, statistical_outliers=statistical_outliers,
+        quality_summary={...},
+    )
+```
+
+## 四、数据分析
+
+清洗完成后，对数据进行多维度的统计分析和可视化。
+
+### 4.1 按销售时间排序
+
+评分要求将清洗后的数据按销售时间升序排列并重置行索引。这一步在 `clean_sales_data()` 末尾通过 `sort_values()` 和 `reset_index()` 完成，排序后数据的时间范围为 2022-01-01 至 2022-07-19。
+
+### 4.2 月度销售统计
+
+`compute_monthly_summary()` 函数按月份对实收金额进行分组聚合，计算每月的订单数、销售数量和实收金额，并求出月均值：
+
+```python
+def compute_monthly_summary(cleaned: pd.DataFrame) -> tuple[pd.DataFrame, float]:
+    """计算月度销售汇总和月均实收金额。"""
+    working = cleaned.copy()
+    working["销售月份"] = working[SALES_TIME_COLUMN].dt.to_period("M").astype(str)
+    monthly = (
+        working.groupby("销售月份", as_index=False)
+        .agg(
+            订单数=("商品名称", "count"),
+            销售数量合计=("销售数量", "sum"),
+            应收金额合计=("应收金额", "sum"),
+            实收金额合计=("实收金额", "sum"),
+            单笔平均实收金额=("实收金额", "mean"),
+        )
+        .sort_values("销售月份")
+    )
+    monthly_average_actual = float(monthly["实收金额合计"].mean())
+    return monthly, monthly_average_actual
+```
+
+计算结果：月均实收金额为 43434.98 元。其中 2022 年 1 月实收金额最高（49461.19 元），7 月最低（30120.22 元，但该月数据仅覆盖 19 天）。
+
+### 4.3 销售时间与实收金额关系
+
+`compute_daily_actual()` 按日期汇总每日实收金额，再由 `plot_time_vs_actual()` 绘制时间序列折线图：
+
+```python
+def compute_daily_actual(cleaned: pd.DataFrame) -> pd.DataFrame:
+    """按日期汇总实收金额，用于时间序列图。"""
+    working = cleaned.copy()
+    working["日期"] = working[SALES_TIME_COLUMN].dt.date
+    return (
+        working.groupby("日期", as_index=False)
+        .agg(订单数=("商品名称", "count"), 实收金额合计=("实收金额", "sum"))
+        .sort_values("日期")
+    )
+```
+
+从图表可以看出，不同日期之间的销售波动明显，部分日期存在高峰值。这类高峰通常与大额或批量购药记录有关，这正是清洗阶段选择保留 IQR 统计异常而非直接删除的原因。
+
+### 4.4 星期分组统计
+
+`compute_weekday_summary()` 按星期分组统计销售情况，并使用 `pd.Categorical` 确保星期按正确顺序排列：
+
+```python
+def compute_weekday_summary(cleaned: pd.DataFrame) -> pd.DataFrame:
+    """按星期分组统计销售数量和金额。"""
+    working = cleaned.copy()
+    working["星期"] = pd.Categorical(
+        working["星期"], categories=WEEKDAY_ORDER, ordered=True
+    )
+    return (
+        working.groupby("星期", observed=False)
+        .agg(
+            订单数=("商品名称", "count"),
+            销售数量合计=("销售数量", "sum"),
+            应收金额合计=("应收金额", "sum"),
+            实收金额合计=("实收金额", "sum"),
+        )
+        .reset_index()
+    )
+```
+
+统计结果表明，星期五的订单数（1160）、销售数量（2831）和实收金额（51284.66 元）均为一周最高，是一周中销售表现最突出的日期。星期四的各项指标则相对较低。
+
+### 4.5 销售数量前十位药品
+
+`compute_top_products()` 按商品名称分组统计销售数量，取前 10 位并绘制横向柱状图：
+
+```python
+def compute_top_products(cleaned: pd.DataFrame, limit: int = 10) -> pd.DataFrame:
+    """返回按销售数量合计排序的药品排行。"""
+    return (
+        cleaned.groupby("商品名称", as_index=False)
+        .agg(
+            订单数=("商品名称", "count"),
+            销售数量合计=("销售数量", "sum"),
+            应收金额合计=("应收金额", "sum"),
+            实收金额合计=("实收金额", "sum"),
+        )
+        .sort_values(["销售数量合计", "实收金额合计"], ascending=[False, False])
+        .head(limit)
+        .reset_index(drop=True)
+    )
+```
+
+销售数量最高的是苯磺酸氨氯地平片（安内真），共售出 1781 件；开博通销售数量排第二（1440 件），但实收金额较高（37080.36 元），说明不同药品的价格差异会影响金额排名与数量排名的对应关系。
+
+## 五、可视化配置
+
+为确保图表中的中文标签正常显示，项目在绘图前统一配置 Matplotlib 和 Seaborn 的字体和样式：
+
+```python
+def configure_plot_style() -> None:
+    """配置 Matplotlib/Seaborn，使其支持中文标签和 PNG 输出。"""
+    sns.set_theme(style="whitegrid")
+    plt.rcParams["font.sans-serif"] = [
+        "WenQuanYi Zen Hei", "Noto Sans CJK SC", "SimHei", "DejaVu Sans",
+    ]
+    plt.rcParams["axes.unicode_minus"] = False
+```
+
+所有图表统一保存为 180 DPI 的 PNG 文件，存储在 `generated/figures/` 目录下。
+
+## 六、项目结构与运行方式
+
+项目采用模块化设计，各分析步骤独立封装：
+
+```
+src/medicine_sales_analysis/
+├── constants.py          # 共享常量（列名、星期映射等）
+├── data_loading.py       # 数据加载
+├── data_overview.py      # 数据概览与列名修正
+├── data_cleaning.py      # 数据清洗与异常处理
+├── monthly_sales.py      # 月度销售统计
+├── weekday_sales.py      # 星期分组统计
+├── top_products.py       # 前十位药品统计
+├── time_actual_relationship.py  # 销售时间与实收金额关系
+├── visualization.py      # 绘图配置
+├── models.py             # 数据模型定义
+├── outputs.py            # 输出保存
+└── pipeline.py           # 流水线调度
+```
+
+运行入口为 `main.py`，通过命令行 `python main.py` 即可执行完整分析流程。流水线模块 `pipeline.py` 按顺序调用各模块：
+
+```python
+def run_analysis(data_path: Path, output_dir: Path) -> AnalysisResult:
+    """运行完整期末考查分析流程。"""
+    raw_data = load_sales_data(data_path)
+    cleaned_data = clean_sales_data(raw_data)
+    monthly_summary, monthly_average_actual = compute_monthly_summary(
+        cleaned_data.cleaned
+    )
+    weekday_summary = compute_weekday_summary(cleaned_data.cleaned)
+    top_products = compute_top_products(cleaned_data.cleaned)
+    daily_actual = compute_daily_actual(cleaned_data.cleaned)
+
+    write_outputs(
+        output_dir=output_dir,
+        cleaned_data=cleaned_data,
+        monthly_summary=monthly_summary,
+        monthly_average_actual=monthly_average_actual,
+        weekday_summary=weekday_summary,
+        top_products=top_products,
+        daily_actual=daily_actual,
+    )
+    return AnalysisResult(...)
+```
+
+## 七、总结
+
+通过本次项目，我完整实践了使用 Python 进行数据分析的全流程，从数据读取、概览检查、清洗处理到统计分析和可视化输出。项目中最关键的设计决策在于异常值处理策略：对于无效日期、负数销售和关键字段缺失这类确定错误，直接剔除以保证后续分析的准确性；但对于 IQR 方法检测出的统计异常，考虑到医药销售中存在真实批量购买的可能性，选择保留并导出供复核，而非简单删除。
+
+整个项目通过模块化设计将分析流程拆分为独立的评分点对应模块，既便于代码维护，也方便答辩时逐项讲解每个评分点的实现思路。
