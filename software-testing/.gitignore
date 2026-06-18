@@ -1,0 +1,11 @@
+# 第三方原始模板含练习站账号密码，不上传公开仓库
+templates/参考项目（期末）.txt
+
+# 体积较大的中间产物：报告以截图(generated/images)与 docx 形式提交即可
+generated/*.html
+generated/*.json
+generated/api-evidence.html
+
+# Python 缓存
+__pycache__/
+*.pyc
