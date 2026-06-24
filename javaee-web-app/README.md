@@ -27,6 +27,42 @@
 
 ## 运行步骤
 
+### 推荐方式：Docker 启动 MySQL
+
+这种方式不需要系统安装 `mysql` 命令行客户端。MySQL 容器第一次启动时会自动执行 `sql/schema.sql` 和 `sql/data.sql`。
+
+1. 启动项目专用 MySQL：
+
+   ```bash
+   docker compose up -d mysql
+   ```
+
+2. 确认 MySQL 容器运行正常：
+
+   ```bash
+   docker compose ps
+   ```
+
+3. 启动 Spring Boot 项目：
+
+   ```bash
+   mvn spring-boot:run
+   ```
+
+4. 浏览器访问：
+
+   ```text
+   http://localhost:18090
+   ```
+
+默认连接信息已经与 `application-dev.yml` 对齐：数据库 `logistics_db`，账号 `root`，密码 `root`，端口 `3306`。
+
+如果本机 3306 端口已被占用，可以把 `docker-compose.yml` 里的 `3306:3306` 改成例如 `3307:3306`，同时把 `application-dev.yml` 的 JDBC 地址改成 `localhost:3307`。
+
+### 备选方式：本机 MySQL 手动导入
+
+如果本机已经安装 MySQL 服务和 `mysql` 命令行客户端，也可以手动导入 SQL。
+
 1. 创建数据库并导入表结构：
 
    ```bash
@@ -57,7 +93,7 @@
 5. 浏览器访问：
 
    ```text
-   http://localhost:8080
+   http://localhost:18090
    ```
 
 ## REST 接口示例
@@ -65,13 +101,13 @@
 查询运单：
 
 ```bash
-curl "http://localhost:8080/api/shipments?status=CREATED"
+curl "http://localhost:18090/api/shipments?status=CREATED"
 ```
 
 新增运单：
 
 ```bash
-curl -X POST "http://localhost:8080/api/shipments" \
+curl -X POST "http://localhost:18090/api/shipments" \
   -H "Content-Type: application/json" \
   -d '{
     "customerId": 1,
@@ -90,7 +126,7 @@ curl -X POST "http://localhost:8080/api/shipments" \
 修改运单：
 
 ```bash
-curl -X PUT "http://localhost:8080/api/shipments/1" \
+curl -X PUT "http://localhost:18090/api/shipments/1" \
   -H "Content-Type: application/json" \
   -d '{
     "customerId": 1,
@@ -109,7 +145,7 @@ curl -X PUT "http://localhost:8080/api/shipments/1" \
 删除运单：
 
 ```bash
-curl -X DELETE "http://localhost:8080/api/shipments/1"
+curl -X DELETE "http://localhost:18090/api/shipments/1"
 ```
 
 ## 项目结构

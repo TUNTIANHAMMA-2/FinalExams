@@ -1,4 +1,5 @@
 use logistics_db;
+set names utf8mb4;
 
 insert into lm_customer (id, name, contact_person, phone, address) values
 (1, '广州星河电商有限公司', '陈经理', '13800010001', '广州市白云区云城西路88号'),

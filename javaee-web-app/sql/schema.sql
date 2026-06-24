@@ -1,5 +1,6 @@
 create database if not exists logistics_db default character set utf8mb4 collate utf8mb4_unicode_ci;
 use logistics_db;
+set names utf8mb4;
 
 drop table if exists lm_shipment;
 drop table if exists lm_vehicle;
