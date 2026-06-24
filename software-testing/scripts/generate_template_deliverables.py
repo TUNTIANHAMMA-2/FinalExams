@@ -1,17 +1,14 @@
 #!/usr/bin/env python3
 """
-Generate software-testing deliverables from the original course templates.
+Generate software-testing deliverables for the RhizoDelta testing assignment.
 
-The source templates under software-testing/templates are old .doc/.xls files.
-This script converts them to docx/xlsx working copies and fills them with the
-actual RhizoDelta testing content.
+The original course templates under software-testing/templates are kept as
+references. Current submission files are generated directly as docx/xls so the
+build does not depend on unreliable old Office-format conversions.
 """
 
 from __future__ import annotations
 
-import os
-import shutil
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -21,12 +18,11 @@ try:
     from docx import Document
     from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.shared import Inches, Pt
-    from openpyxl import load_workbook
-    from openpyxl.styles import Alignment
+    import xlwt
 except ImportError as exc:  # pragma: no cover - user-facing setup guard
     raise SystemExit(
-        "Missing dependency: python-docx/openpyxl. "
-        "Install with: python3 -m pip install python-docx openpyxl"
+        "Missing dependency: python-docx/xlwt. "
+        "Install with: python3 -m pip install python-docx xlwt"
     ) from exc
 
 
@@ -48,26 +44,342 @@ REPORT_TEMPLATE = TEMPLATES / "《软件测试技术》考查报告（每人一�
 
 
 CASES = [
-    ("RD-ST-SRS001-001", "认证授权", "合法注册", "高", "用户名未占用", "{username,password≥8,display_name}", "POST /api/auth/register，提交合法注册信息", "HTTP 200，code=0，返回 token、refresh_token、user", "一致", "通过"),
-    ("RD-ST-SRS001-002", "认证授权", "重复用户名注册", "高", "用户名已存在", "重复提交 qa_tester_st", "POST /api/auth/register，再次注册同名用户", "按 REST 语义应返回 HTTP 409 Conflict，业务码 40901", "HTTP 400，code=40001，message=username already exists", "未通过，BUG-001"),
-    ("RD-ST-SRS001-003", "认证授权", "密码少于 8 位", "高", "无", 'password="123"', "POST /api/auth/register", "HTTP 400，提示密码至少 8 位", "一致", "通过"),
-    ("RD-ST-SRS001-004", "认证授权", "空用户名注册", "中", "无", 'username=""', "POST /api/auth/register", "HTTP 400，提示 must not be blank", "一致", "通过"),
-    ("RD-ST-SRS001-005", "认证授权", "正确登录", "高", "账号已注册且 ACTIVE", "正确 username/password", "POST /api/auth/login", "HTTP 200，code=0，返回 token", "一致", "通过"),
-    ("RD-ST-SRS001-006", "认证授权", "密码错误登录", "高", "账号存在", "错误 password", "POST /api/auth/login", "HTTP 401，提示 invalid username or password", "一致", "通过"),
-    ("RD-ST-SRS001-007", "认证授权", "不存在用户登录", "高", "无", "不存在用户名", "POST /api/auth/login", "HTTP 401，提示与密码错误一致，不泄露账号存在性", "一致", "通过"),
-    ("RD-ST-SRS001-008", "认证授权", "带 token 查询当前用户", "高", "已登录", "Authorization: Bearer <token>", "GET /api/auth/me", "HTTP 200，返回 username 与登录账号匹配", "一致", "通过"),
-    ("RD-ST-SRS001-009", "认证授权", "无 token 查询当前用户", "高", "无", "不带 Authorization", "GET /api/auth/me", "HTTP 401，提示 authentication required", "一致", "通过"),
-    ("RD-ST-SRS001-010", "认证授权", "伪造 token 查询当前用户", "高", "无", "Bearer faketoken.abc.def", "GET /api/auth/me", "HTTP 401，提示 invalid token", "一致", "通过"),
-    ("RD-ST-SRS001-011", "认证授权", "刷新令牌", "中", "持有有效 refresh_token", "{refresh_token}", "POST /api/auth/refresh", "HTTP 200，发放新 token", "一致", "通过"),
-    ("RD-ST-SRS002-001", "用户资料与社交", "查看本人资料", "中", "已登录", "Bearer token", "GET /api/users/me/profile", "HTTP 200，返回 user_id、username、display_name 等字段", "一致", "通过"),
-    ("RD-ST-SRS002-002", "用户资料与社交", "未登录查询资料", "高", "无", "无 token", "GET /api/users/me/profile", "HTTP 401，提示 authentication required", "一致", "通过"),
-    ("RD-ST-SRS002-003", "用户资料与社交", "查询在线状态", "低", "已登录", "Bearer token", "GET /api/users/me/status", "HTTP 200，online=true，last_active 可解析", "接口可用；last_active 为字符串型 epoch，见 BUG-002", "通过，记录低危缺陷"),
-    ("RD-ST-SRS002-004", "用户资料与社交", "动态流分页", "中", "已登录", "Bearer token", "GET /api/users/me/feed", "HTTP 200，返回 items 数组和分页字段", "一致", "通过"),
-    ("RD-ST-SRS004-001", "图谱查询", "查询根话题", "中", "图数据库中有数据", "Bearer token", "GET /api/nodes/roots", "HTTP 200，data 为节点数组", "一致", "通过"),
-    ("RD-ST-SRS004-002", "图谱查询", "非法 UUID 格式", "中", "无", 'id="not-a-uuid"', "GET /api/nodes/{id}", "HTTP 400，提示 id must be a valid UUID", "一致，格式校验先于查库", "通过"),
-    ("RD-ST-SRS004-003", "图谱查询", "合法但不存在的节点", "中", "无", "00000000-0000-0000-0000-000000000000", "GET /api/nodes/{id}", "HTTP 404，code=40401，Node not found", "一致", "通过"),
-    ("RD-ST-SRS001-012", "认证收尾", "登出", "中", "已登录", "Bearer token", "POST /api/auth/logout", "HTTP 200，code=0", "一致", "通过"),
-    ("RD-ST-SRS001-013", "认证收尾", "登出后复用旧 token", "高", "已登出", "旧 token", "GET /api/auth/me", "HTTP 401，提示 token revoked，黑名单生效", "一致", "通过"),
+    (
+        "RD-ST-SRS001-001",
+        "认证授权",
+        "合法注册",
+        "高",
+        "用户名未占用",
+        "等价类：有效用户名 + 密码长度>=8 + display_name 合法；代表输入：{username: qa_<timestamp>, password: ChangeMe123!, display_name: QA Tester}",
+        "POST /api/auth/register，提交合法注册信息",
+        "HTTP 200，code=0，返回 token、refresh_token、user",
+        "一致",
+        "通过",
+    ),
+    (
+        "RD-ST-SRS001-002",
+        "认证授权",
+        "重复用户名注册",
+        "高",
+        "用户名已存在",
+        "等价类：无效用户名=已存在；代表输入：重复提交 qa_tester_st",
+        "POST /api/auth/register，再次注册同名用户",
+        "按 REST 语义应返回 HTTP 409 Conflict，业务码 40901",
+        "当前 HTTP 400，code=40001，message=username already exists",
+        "通过，记录 BUG-001",
+    ),
+    (
+        "RD-ST-SRS001-003",
+        "认证授权",
+        "密码少于 8 位",
+        "高",
+        "无",
+        '边界值：密码长度=3（小于最小有效长度 8）；代表输入：password="123"',
+        "POST /api/auth/register",
+        "HTTP 400，提示密码至少 8 位",
+        "一致",
+        "通过",
+    ),
+    (
+        "RD-ST-SRS001-004",
+        "认证授权",
+        "空用户名注册",
+        "中",
+        "无",
+        '边界值：username 为空字符串；代表输入：username=""',
+        "POST /api/auth/register",
+        "HTTP 400，提示 must not be blank",
+        "一致",
+        "通过",
+    ),
+    (
+        "RD-ST-SRS001-005",
+        "认证授权",
+        "正确登录",
+        "高",
+        "账号已注册且 ACTIVE",
+        "因果图：账号存在=是，密码正确=是，账号状态=ACTIVE；代表输入：正确 username/password",
+        "POST /api/auth/login",
+        "HTTP 200，code=0，返回 token",
+        "一致",
+        "通过",
+    ),
+    (
+        "RD-ST-SRS001-006",
+        "认证授权",
+        "密码错误登录",
+        "高",
+        "账号存在",
+        "因果图：账号存在=是，密码正确=否；代表输入：password=WrongPass99",
+        "POST /api/auth/login",
+        "HTTP 401，提示 invalid username or password",
+        "一致",
+        "通过",
+    ),
+    (
+        "RD-ST-SRS001-007",
+        "认证授权",
+        "不存在用户登录",
+        "高",
+        "无",
+        "因果图：账号存在=否；代表输入：username=no_such_user_xyz",
+        "POST /api/auth/login",
+        "HTTP 401，提示与密码错误一致，不泄露账号存在性",
+        "一致",
+        "通过",
+    ),
+    (
+        "RD-ST-SRS001-008",
+        "认证授权",
+        "带 token 查询当前用户",
+        "高",
+        "已登录",
+        "等价类：Authorization token 合法且未吊销；代表输入：Authorization: Bearer <token>",
+        "GET /api/auth/me",
+        "HTTP 200，返回 username 与登录账号匹配",
+        "一致",
+        "通过",
+    ),
+    (
+        "RD-ST-SRS001-009",
+        "认证授权",
+        "无 token 查询当前用户",
+        "高",
+        "无",
+        "等价类：Authorization token 缺失；代表输入：不带 Authorization 请求头",
+        "GET /api/auth/me",
+        "HTTP 401，提示 authentication required",
+        "一致",
+        "通过",
+    ),
+    (
+        "RD-ST-SRS001-010",
+        "认证授权",
+        "伪造 token 查询当前用户",
+        "高",
+        "无",
+        "错误推测：token 结构存在但签名/载荷无效；代表输入：Bearer faketoken.abc.def",
+        "GET /api/auth/me",
+        "HTTP 401，提示 invalid token",
+        "一致",
+        "通过",
+    ),
+    (
+        "RD-ST-SRS001-011",
+        "认证授权",
+        "刷新令牌",
+        "中",
+        "持有有效 refresh_token",
+        "等价类：refresh_token 合法且未过期；代表输入：{refresh_token: <refreshToken>}",
+        "POST /api/auth/refresh",
+        "HTTP 200，发放新 token",
+        "一致",
+        "通过",
+    ),
+    (
+        "RD-ST-SRS001-014",
+        "认证授权",
+        "密码 8 位边界注册",
+        "中",
+        "用户名未占用",
+        '边界值：password 长度=8（最小有效边界）；代表输入：password="Abcd1234"',
+        "POST /api/auth/register",
+        "HTTP 200，code=0，返回 token 与 user；若策略要求更复杂密码，应返回明确校验错误",
+        "未执行，待加入 Postman 回归",
+        "待执行（补充设计）",
+    ),
+    (
+        "RD-ST-SRS001-015",
+        "认证授权",
+        "注册缺少密码字段",
+        "高",
+        "无",
+        "等价类：password 缺失；代表输入：{username: qa_missing_pwd}",
+        "POST /api/auth/register",
+        "HTTP 400，code 非 0，不创建用户，不返回 token",
+        "未执行，待加入 Postman 回归",
+        "待执行（补充设计）",
+    ),
+    (
+        "RD-ST-SRS001-016",
+        "认证授权",
+        "空密码登录",
+        "高",
+        "账号存在",
+        '边界值：password 为空字符串；代表输入：password=""',
+        "POST /api/auth/login",
+        "HTTP 400 或 401，code 非 0，不返回 token",
+        "未执行，待加入 Postman 回归",
+        "待执行（补充设计）",
+    ),
+    (
+        "RD-ST-SRS001-017",
+        "认证授权",
+        "空刷新令牌",
+        "中",
+        "无",
+        '等价类：refresh_token 缺失/为空；代表输入：refresh_token=""',
+        "POST /api/auth/refresh",
+        "HTTP 400 或 401，code 非 0，不发放新 token",
+        "未执行，待加入 Postman 回归",
+        "待执行（补充设计）",
+    ),
+    (
+        "RD-ST-SRS002-001",
+        "用户资料与社交",
+        "查看本人资料",
+        "中",
+        "已登录",
+        "等价类：token 合法；代表输入：Bearer <token>",
+        "GET /api/users/me/profile",
+        "HTTP 200，返回 user_id、username、display_name 等字段",
+        "一致",
+        "通过",
+    ),
+    (
+        "RD-ST-SRS002-002",
+        "用户资料与社交",
+        "未登录查询资料",
+        "高",
+        "无",
+        "等价类：token 缺失；代表输入：无 Authorization 请求头",
+        "GET /api/users/me/profile",
+        "HTTP 401，提示 authentication required",
+        "一致",
+        "通过",
+    ),
+    (
+        "RD-ST-SRS002-003",
+        "用户资料与社交",
+        "查询在线状态",
+        "低",
+        "已登录",
+        "等价类：token 合法；字段检查：online 为布尔值，last_active 为时间表达",
+        "GET /api/users/me/status",
+        "HTTP 200，online=true，last_active 可解析",
+        "接口可用；last_active 为字符串型 epoch，见 BUG-002",
+        "通过，记录低危缺陷",
+    ),
+    (
+        "RD-ST-SRS002-004",
+        "用户资料与社交",
+        "动态流分页",
+        "中",
+        "已登录",
+        "等价类：默认分页参数；代表输入：不传 page/size",
+        "GET /api/users/me/feed",
+        "HTTP 200，返回 items 数组和分页字段",
+        "一致",
+        "通过",
+    ),
+    (
+        "RD-ST-SRS002-005",
+        "用户资料与社交",
+        "动态流分页最小页大小",
+        "中",
+        "已登录",
+        "边界值：page=0，size=1；验证最小页大小和分页字段一致性",
+        "GET /api/users/me/feed?page=0&size=1",
+        "HTTP 200，items 长度<=1，分页元数据合法",
+        "未执行，待加入 Postman 回归",
+        "待执行（补充设计）",
+    ),
+    (
+        "RD-ST-SRS002-006",
+        "用户资料与社交",
+        "动态流非法页码",
+        "中",
+        "已登录",
+        "边界值/无效等价类：page=-1，size=20；验证负页码校验",
+        "GET /api/users/me/feed?page=-1&size=20",
+        "HTTP 400，code 非 0，不返回正常分页数据",
+        "未执行，待加入 Postman 回归",
+        "待执行（补充设计）",
+    ),
+    (
+        "RD-ST-SRS004-001",
+        "图谱查询",
+        "查询根话题",
+        "中",
+        "图数据库中有数据",
+        "等价类：token 合法且无需路径参数；代表输入：Bearer <token>",
+        "GET /api/nodes/roots",
+        "HTTP 200，data 为节点数组",
+        "一致",
+        "通过",
+    ),
+    (
+        "RD-ST-SRS004-002",
+        "图谱查询",
+        "非法 UUID 格式",
+        "中",
+        "无",
+        '边界值/无效等价类：UUID 格式错误；代表输入：id="not-a-uuid"',
+        "GET /api/nodes/{id}",
+        "HTTP 400，提示 id must be a valid UUID",
+        "一致，格式校验先于查库",
+        "通过",
+    ),
+    (
+        "RD-ST-SRS004-003",
+        "图谱查询",
+        "合法但不存在的节点",
+        "中",
+        "无",
+        "等价类：UUID 格式合法但资源不存在；代表输入：00000000-0000-0000-0000-000000000000",
+        "GET /api/nodes/{id}",
+        "HTTP 404，code=40401，Node not found",
+        "一致",
+        "通过",
+    ),
+    (
+        "RD-ST-SRS004-004",
+        "图谱查询",
+        "无 token 查询根话题",
+        "高",
+        "无",
+        "等价类：token 缺失；代表输入：GET /api/nodes/roots 不带 Authorization",
+        "GET /api/nodes/roots",
+        "HTTP 401，提示 authentication required",
+        "未执行，待加入 Postman 回归",
+        "待执行（补充设计）",
+    ),
+    (
+        "RD-ST-SRS001-012",
+        "认证收尾",
+        "登出",
+        "中",
+        "已登录",
+        "场景法：注册/登录后 token 合法；代表输入：Bearer <token>",
+        "POST /api/auth/logout",
+        "HTTP 200，code=0",
+        "一致",
+        "通过",
+    ),
+    (
+        "RD-ST-SRS001-013",
+        "认证收尾",
+        "登出后复用旧 token",
+        "高",
+        "已登出",
+        "场景法/状态迁移：token 已被吊销；代表输入：旧 token",
+        "GET /api/auth/me",
+        "HTTP 401，提示 token revoked，黑名单生效",
+        "一致",
+        "通过",
+    ),
+    (
+        "RD-ST-SRS001-018",
+        "认证收尾",
+        "无 token 登出",
+        "中",
+        "无",
+        "等价类：token 缺失；代表输入：POST /api/auth/logout 不带 Authorization",
+        "POST /api/auth/logout",
+        "HTTP 401，code 非 0，不影响其它会话 token 状态",
+        "未执行，待加入 Postman 回归",
+        "待执行（补充设计）",
+    ),
 ]
 
 
@@ -101,12 +413,10 @@ BUGS = [
 ]
 
 
-CASE_COUNTS = [
-    ("认证授权", 11),
-    ("用户资料与社交", 4),
-    ("图谱查询", 3),
-    ("认证收尾", 2),
-]
+CASE_MODULE_ORDER = ["认证授权", "用户资料与社交", "图谱查询", "认证收尾"]
+EXECUTION_STATUS_DONE = "通过"
+POSTMAN_CASE_TOTAL = 20
+POSTMAN_ASSERTION_TOTAL = 58
 
 BUG_SUMMARY = [
     ("认证授权", 0, 0, 0, 0, 1, 1),
@@ -117,35 +427,87 @@ BUG_SUMMARY = [
 ]
 
 
-def run_soffice(args: list[str], *, cwd: Path | None = None) -> None:
-    env = os.environ.copy()
-    env.setdefault("SAL_USE_VCLPLUGIN", "svp")
-    profile = Path(tempfile.mkdtemp(prefix="st-lo-profile-"))
-    command = [
-        "libreoffice",
-        "--headless",
-        "--invisible",
-        "--nodefault",
-        "--nolockcheck",
-        "--nologo",
-        "--nofirststartwizard",
-        f"-env:UserInstallation={profile.as_uri()}",
-        *args,
-    ]
-    subprocess.run(command, cwd=cwd, env=env, check=True)
+EQUIVALENCE_CLASSES = [
+    (
+        "EC-AUTH-USERNAME",
+        "注册 username",
+        "未占用、非空、满足系统允许字符与长度的用户名",
+        "空字符串、已存在用户名、超长/非法字符用户名",
+        "空值；已存在值；正常唯一值",
+        "RD-ST-SRS001-001、002、004、015",
+        "等价类划分 + 边界值",
+    ),
+    (
+        "EC-AUTH-PASSWORD",
+        "注册/登录 password",
+        "长度>=8 且符合当前密码策略",
+        "缺失、空字符串、长度<8、错误密码",
+        "长度0、3、8；正确/错误密码组合",
+        "RD-ST-SRS001-003、005、006、014、016",
+        "等价类划分 + 边界值 + 因果图",
+    ),
+    (
+        "EC-AUTH-TOKEN",
+        "Authorization Bearer token",
+        "合法、未过期、未吊销的 access token",
+        "缺失、伪造、过期、登出后已吊销 token",
+        "无请求头；格式伪造；旧 token",
+        "RD-ST-SRS001-008、009、010、012、013、018、RD-ST-SRS002-001、002、RD-ST-SRS004-004",
+        "等价类划分 + 错误推测 + 场景法",
+    ),
+    (
+        "EC-AUTH-REFRESH",
+        "refresh_token",
+        "合法且未过期的 refresh_token",
+        "缺失、空字符串、伪造、过期 refresh_token",
+        "有效值；空值",
+        "RD-ST-SRS001-011、017",
+        "等价类划分 + 错误推测",
+    ),
+    (
+        "EC-FEED-PAGE",
+        "动态流 page/size",
+        "page>=0，size 在服务端允许范围内；未传时使用默认值",
+        "page<0，size=0，size 过大，非数字",
+        "默认值；page=0,size=1；page=-1",
+        "RD-ST-SRS002-004、005、006",
+        "边界值分析 + 错误推测",
+    ),
+    (
+        "EC-GRAPH-UUID",
+        "节点 id(UUID)",
+        "符合 UUID 格式且资源存在；符合 UUID 格式但资源不存在",
+        "非 UUID 字符串、空路径段、恶意构造路径",
+        "not-a-uuid；00000000-0000-0000-0000-000000000000",
+        "RD-ST-SRS004-002、003",
+        "等价类划分 + 边界值",
+    ),
+]
 
 
-def convert_template(src: Path, out_dir: Path, target_ext: str) -> Path:
-    out_dir.mkdir(parents=True, exist_ok=True)
-    before = {p.name for p in out_dir.iterdir()}
-    run_soffice(["--convert-to", target_ext, "--outdir", str(out_dir), str(src)])
-    after = [p for p in out_dir.iterdir() if p.name not in before and p.suffix.lower() == f".{target_ext}"]
-    if after:
-        return after[0]
-    guessed = out_dir / f"{src.stem}.{target_ext}"
-    if guessed.exists():
-        return guessed
-    raise FileNotFoundError(f"converted file not found for {src}")
+METHOD_COVERAGE = [
+    ("等价类划分", "把 username、password、token、refresh_token、分页参数、UUID 分成有效/无效输入域", "主表输入栏 + 等价类划分表"),
+    ("边界值分析", "覆盖空值、最小有效密码长度、最小页大小、负页码、UUID 格式边界", "RD-ST-SRS001-003/004/014/016、RD-ST-SRS002-005/006、RD-ST-SRS004-002"),
+    ("错误推测", "覆盖重复注册、伪造 token、缺字段、非法分页、无 token 访问受保护资源", "RD-ST-SRS001-002/010/015/017/018、RD-ST-SRS004-004"),
+    ("因果图/判定表", "登录结果由账号存在性、密码正确性、账号状态共同决定", "RD-ST-SRS001-005/006/007"),
+    ("场景法", "注册/登录 -> 查询资料 -> 刷新令牌 -> 图谱查询 -> 登出 -> 旧 token 失效", "RD-ST-SRS001-001/005/008/011/012/013"),
+]
+
+
+def case_counts() -> list[tuple[str, int]]:
+    return [(module, sum(1 for case in CASES if case[1] == module)) for module in CASE_MODULE_ORDER]
+
+
+def case_total() -> int:
+    return len(CASES)
+
+
+def supplement_case_total() -> int:
+    return sum(1 for case in CASES if "补充设计" in case[9])
+
+
+def executed_case_total() -> int:
+    return case_total() - supplement_case_total()
 
 
 def set_cell_text(cell, text: str) -> None:
@@ -255,12 +617,12 @@ def build_plan(template_docx: Path, output: Path) -> None:
     add_heading(doc, "1.2 阅读对象", 2)
     add_para(doc, "本文档的预期读者包括：课程指导教师、评审人员、项目负责人、软件设计开发人员、测试人员以及后续维护人员。")
     add_heading(doc, "1.3 系统背景", 2)
-    add_para(doc, "RhizoDelta 是一个 B/S 架构的图谱化非线性讨论系统，后端采用 Spring Boot 3、Spring Security + JWT、Spring Data Neo4j、Redis、RabbitMQ 与 SSE，前端采用 React/Vite。系统通过图数据库组织讨论节点与关联，通过异步队列处理发帖、摘要等高成本任务，并向前端实时推送状态变化。本次测试以可运行的 RhizoDelta 实例为被测系统，重点验证认证授权、用户资料与社交、图谱查询等核心 REST 接口和黑盒功能行为。")
+    add_para(doc, "RhizoDelta 是一个 B/S 架构的图谱化非线性讨论系统，后端采用 Spring Boot 3、Spring Security + JWT、Spring Data Neo4j、Redis、RabbitMQ 与 SSE，前端采用 React/Vite。系统通过图数据库组织讨论节点与关联，通过异步队列处理发帖、摘要等高成本任务，并向前端实时推送状态变化。本次测试以可运行的 RhizoDelta 实例为被测系统，重点验证认证授权、用户资料基础接口、图谱查询基础接口、登出与 token 吊销等本轮核心子集 REST 行为。")
 
     add_heading(doc, "2 测试任务", 1)
     add_heading(doc, "2.1 测试目的", 2)
     for text in [
-        "确定核心功能是否正常可用，业务流程是否闭环。",
+        "确定本轮核心子集功能是否正常可用，业务流程是否闭环。",
         "确定 REST 接口的状态码、统一响应包、字段命名、参数校验和鉴权约束是否符合预期。",
         "确定需求范围是否一致、完整、可验证。",
         "通过 Postman/newman 形成可复现的接口测试证据。",
@@ -284,7 +646,7 @@ def build_plan(template_docx: Path, output: Path) -> None:
         ["文档名", "版本", "日期", "作者", "备注"],
         [
             ("《1-测试方案》", "1.0", TEST_DATE, AUTHOR, "由 1测试方案.doc 模板副本填写"),
-            ("《2-测试用例》", "1.0", TEST_DATE, AUTHOR, "由 2测试用例.xls 模板副本填写，20 条用例"),
+            ("《2-测试用例》", "1.0", TEST_DATE, AUTHOR, f"由 2测试用例.xls 模板副本填写，{case_total()} 条用例，其中 {executed_case_total()} 条已实测、{supplement_case_total()} 条补充设计"),
             ("《3-Bug缺陷报告清单》", "1.0", TEST_DATE, AUTHOR, "由 3Bug缺陷报告清单.xls 模板副本填写，2 个缺陷"),
             ("《4-接口测试-Postman》", "1.0", TEST_DATE, AUTHOR, "Postman 专项测试用例、集合、环境和 newman 报告"),
             ("《5-测试总结报告》", "1.0", TEST_DATE, AUTHOR, "由 5测试总结报告.doc 模板副本填写"),
@@ -302,8 +664,8 @@ def build_plan(template_docx: Path, output: Path) -> None:
             ("被测后端", "1", "RhizoDelta Spring Boot，http://localhost:8090"),
             ("数据与中间件", "3", "Neo4j、Redis、RabbitMQ"),
             ("浏览器环境", "1", "Chrome 最新版"),
-            ("接口测试工具", "1", "Postman + newman，集合 20 条请求，58 条断言"),
-            ("文档工具", "1", "Word/WPS/LibreOffice，可打开 doc/docx/xls/xlsx"),
+            ("接口测试工具", "1", f"Postman + newman，集合 {POSTMAN_CASE_TOTAL} 条请求，{POSTMAN_ASSERTION_TOTAL} 条断言"),
+            ("文档工具", "1", "Word/WPS/LibreOffice，可打开 doc/docx/xls"),
             ("截图工具", "1", "浏览器截图与 newman htmlextra 报告截图"),
         ],
     )
@@ -324,14 +686,14 @@ def build_plan(template_docx: Path, output: Path) -> None:
     add_heading(doc, "4.1 整体功能模块划分", 2)
     add_table(
         doc,
-        ["需求编号", "模块名称", "功能名称", "测试人员"],
+        ["需求编号", "模块名称", "功能名称", "本轮处理", "测试人员"],
         [
-            ("RD-ST-SRS001", "认证授权", "注册、登录、刷新令牌、登出、当前用户、JWT 鉴权与 token 吊销", AUTHOR),
-            ("RD-ST-SRS002", "用户资料与社交", "个人资料、头像、关注、拉黑、动态流、在线状态", AUTHOR),
-            ("RD-ST-SRS003", "发帖与关联", "发帖异步入队、创建/删除节点关联（本轮列入后续扩展）", AUTHOR),
-            ("RD-ST-SRS004", "图谱查询", "根话题、节点详情、拓扑上下文、谱系、子代、讨论树、溯源与关联查询", AUTHOR),
-            ("RD-ST-SRS005", "治理决策与复核", "合并、分支、注入、回滚、审批、驳回与审计（选测）", AUTHOR),
-            ("RD-ST-SRS006", "AI 与实时", "节点摘要、向量、相似检索、SSE 事件流（冒烟/范围外说明）", AUTHOR),
+            ("RD-ST-SRS001", "认证授权", "注册、登录、刷新令牌、登出、当前用户、JWT 鉴权与 token 吊销", "完整执行", AUTHOR),
+            ("RD-ST-SRS002", "用户资料与社交", "个人资料、头像、关注、拉黑、动态流、在线状态", "执行资料/状态/feed 基础接口；头像/关注/拉黑后续扩展", AUTHOR),
+            ("RD-ST-SRS003", "发帖与关联", "发帖异步入队、创建/删除节点关联", "后续扩展，不计入本轮通过率", AUTHOR),
+            ("RD-ST-SRS004", "图谱查询", "根话题、节点详情、拓扑上下文、谱系、子代、讨论树、溯源与关联查询", "执行根话题与详情异常路径；复杂拓扑后续扩展", AUTHOR),
+            ("RD-ST-SRS005", "治理决策与复核", "合并、分支、注入、回滚、审批、驳回与审计", "后续扩展，不计入本轮通过率", AUTHOR),
+            ("RD-ST-SRS006", "AI 与实时", "节点摘要、向量、相似检索、SSE 事件流", "范围外说明", AUTHOR),
         ],
     )
 
@@ -342,8 +704,8 @@ def build_plan(template_docx: Path, output: Path) -> None:
         [
             ("需求分析", "2026.6.18 19:00-19:30", AUTHOR, "分析 RhizoDelta 模块、接口、角色和测试边界", "项目理解、测试范围"),
             ("测试方案", "2026.6.18 19:30-20:00", AUTHOR, "按模板编写测试资源、计划、风险与提交物", "《1-测试方案》"),
-            ("测试用例", "2026.6.18 20:00-20:40", AUTHOR, "用等价类、边界值、错误推测、场景法设计 20 条用例", "《2-测试用例》"),
-            ("接口执行", "2026.6.18 20:40-21:10", AUTHOR, "生成 Postman 集合并通过 newman 执行 20 个请求、58 条断言", "newman HTML/JSON 报告"),
+            ("测试用例", "2026.6.18 20:00-20:40", AUTHOR, f"用等价类、边界值、错误推测、因果图和场景法设计 {case_total()} 条用例", "《2-测试用例》"),
+            ("接口执行", "2026.6.18 20:40-21:10", AUTHOR, f"生成 Postman 集合并通过 newman 执行 {POSTMAN_CASE_TOTAL} 个请求、{POSTMAN_ASSERTION_TOTAL} 条断言", "newman HTML/JSON 报告"),
             ("缺陷登记", "2026.6.18 21:10-21:25", AUTHOR, "登记重复注册状态码与 last_active 时间格式问题", "《3-Bug缺陷报告清单》"),
             ("总结归档", "2026.6.18 21:25-21:45", AUTHOR, "汇总覆盖、缺陷、结论和后续建议", "《5-测试总结报告》与课程考查报告"),
         ],
@@ -356,7 +718,7 @@ def build_plan(template_docx: Path, output: Path) -> None:
         [
             ("环境风险", "Neo4j、Redis、RabbitMQ 或后端 8090 端口未启动，导致接口不可达", "测前检查依赖和 baseUrl；Postman 环境变量统一配置；失败时先排除环境问题"),
             ("数据风险", "注册、发帖等操作污染开发库数据", "使用 qa_tester_st 与 qa_时间戳账号隔离测试数据，必要时在 Neo4j 中清理"),
-            ("范围风险", "SSE、AI 摘要、异步队列等功能涉及外部依赖和最终一致性，课程作业周期内难以充分覆盖", "核心 REST 功能完整测试，异步/AI/实时功能标记为冒烟或后续扩展"),
+            ("范围风险", "SSE、AI 摘要、异步队列、治理流程等功能涉及外部依赖和最终一致性，课程作业周期内难以充分覆盖", "本轮只对同步 REST 核心子集下结论，后续扩展项在总结说明"),
             ("时间风险", "个人独立提交，测试时间有限", "优先认证授权、用户资料、图谱查询等高价值模块，自动化接口测试提高执行效率"),
             ("契约风险", "HTTP 状态码、业务码、时间字段格式不统一", "在用例和缺陷清单中明确断言状态码、业务码、字段命名和时间格式"),
         ],
@@ -396,7 +758,7 @@ def build_summary(template_docx: Path, output: Path) -> None:
     add_heading(doc, "1 测试概述", 1)
     add_heading(doc, "1.1 编写目的", 2)
     for text in [
-        "确认测试用例、缺陷登记和测试方案是否覆盖 RhizoDelta 的核心测试范围。",
+        "确认测试用例、缺陷登记和测试方案是否覆盖 RhizoDelta 的本轮核心子集测试范围。",
         "汇总本次测试活动的环境、方法、进度、执行数据和测试证据。",
         "解释用例设计方法与具体用例的对应关系。",
         "分析缺陷分布与根因，给出后续修复和预防建议。",
@@ -404,7 +766,7 @@ def build_summary(template_docx: Path, output: Path) -> None:
     ]:
         add_para(doc, f"    {text}")
     add_heading(doc, "1.2 项目背景", 2)
-    add_para(doc, "RhizoDelta 是 B/S 架构的图谱化非线性讨论系统，使用 Spring Boot、Neo4j、Redis、RabbitMQ、JWT、SSE 与 React/Vite 构建。系统面向非线性讨论场景，核心能力包括认证授权、个人资料与社交关系、发帖与节点关联、图谱查询、治理决策与复核、AI 摘要及实时事件。本轮课程作业聚焦可稳定复现的核心 REST 行为，并使用 Postman 作为专项测试工具。")
+    add_para(doc, "RhizoDelta 是 B/S 架构的图谱化非线性讨论系统，使用 Spring Boot、Neo4j、Redis、RabbitMQ、JWT、SSE 与 React/Vite 构建。系统面向非线性讨论场景，核心能力包括认证授权、个人资料与社交关系、发帖与节点关联、图谱查询、治理决策与复核、AI 摘要及实时事件。本轮课程作业聚焦可稳定复现的核心子集 REST 行为，并使用 Postman 作为专项测试工具。")
 
     add_heading(doc, "2 测试参考文档", 1)
     add_table(
@@ -412,7 +774,7 @@ def build_summary(template_docx: Path, output: Path) -> None:
         ["文档名", "版本", "日期", "作者", "备注"],
         [
             ("《1-测试方案》", "1.0", TEST_DATE, AUTHOR, "测试范围、资源、计划和风险"),
-            ("《2-测试用例》", "1.0", TEST_DATE, AUTHOR, "20 条功能/接口用例"),
+            ("《2-测试用例》", "1.0", TEST_DATE, AUTHOR, f"{case_total()} 条功能/接口用例，其中 {executed_case_total()} 条已实测、{supplement_case_total()} 条补充设计"),
             ("《3-Bug缺陷报告清单》", "1.0", TEST_DATE, AUTHOR, "2 个低危缺陷"),
             ("《4-接口测试-Postman》", "1.0", TEST_DATE, AUTHOR, "Postman 集合、环境与 newman 报告"),
             ("RhizoDelta 项目理解与测试策略文档", "1.0", TEST_DATE, AUTHOR, "系统背景、测试边界和设计方法"),
@@ -431,9 +793,9 @@ def build_summary(template_docx: Path, output: Path) -> None:
     add_heading(doc, "4 测试设计介绍", 1)
     add_heading(doc, "4.1 测试用例设计方法", 2)
     method_rows = [
-        ("4.1.1 错误推测法", "根据接口常见风险设计伪造 token、无 token、非法 UUID、不存在用户、重复注册等用例，用于发现鉴权、参数校验和错误处理问题。"),
-        ("4.1.2 等价类划分法", "把用户名、密码、token、UUID、分页参数划分为合法类和非法类，例如合法密码与少于 8 位密码分别覆盖有效/无效等价类。"),
-        ("4.1.3 边界值分析法", "围绕密码长度、空用户名、UUID 格式等边界取值设计用例，验证 GlobalExceptionHandler 与校验注解是否按预期返回错误信息。"),
+        ("4.1.1 错误推测法", "根据接口常见风险设计伪造 token、无 token、非法 UUID、不存在用户、重复注册、缺少密码字段、非法分页等用例，用于发现鉴权、参数校验和错误处理问题。"),
+        ("4.1.2 等价类划分法", "把用户名、密码、token、refresh_token、UUID、分页参数划分为合法类和非法类，并在测试用例表的输入栏中写明代表输入。"),
+        ("4.1.3 边界值分析法", "围绕密码长度、空用户名、空密码、分页 page/size、UUID 格式等边界取值设计用例，验证 GlobalExceptionHandler 与校验注解是否按预期返回错误信息。"),
         ("4.1.4 因果图法", "登录场景按用户名存在性、密码正确性、账号状态组合推导结果，覆盖正确登录、密码错误、不存在用户三个关键组合。"),
         ("4.1.5 场景法", "设计注册→登录→查询资料→刷新令牌→登出→旧 token 失效的端到端链路，验证主业务流程闭环和 token 黑名单生效。"),
     ]
@@ -452,7 +814,7 @@ def build_summary(template_docx: Path, output: Path) -> None:
             ("被测后端", "1", "RhizoDelta Spring Boot，http://localhost:8090"),
             ("依赖服务", "3", "Neo4j、Redis、RabbitMQ"),
             ("浏览器", "1", "Chrome 最新版"),
-            ("接口工具", "1", "Postman + newman；20 请求，58 断言"),
+            ("接口工具", "1", f"Postman + newman；{POSTMAN_CASE_TOTAL} 请求，{POSTMAN_ASSERTION_TOTAL} 断言"),
             ("文档与截图", "1", "Word/WPS/LibreOffice，浏览器截图，newman htmlextra 报告"),
         ],
     )
@@ -460,21 +822,21 @@ def build_summary(template_docx: Path, output: Path) -> None:
     for heading, text in [
         ("4.3.1 软件审查", "审查系统说明、接口契约、统一响应包、错误码和课程模板要求，确认测试范围与提交物结构。"),
         ("4.3.2 黑盒测试", "从用户和接口调用者视角验证输入与输出，不依赖后端实现细节判断功能是否符合预期。"),
-        ("4.3.3 接口自动化测试", "使用 Postman 编写 20 条接口请求和 Tests 断言，通过 newman 生成 HTML/JSON 报告。"),
+        ("4.3.3 接口自动化测试", f"使用 Postman 编写 {POSTMAN_CASE_TOTAL} 条接口请求和 Tests 断言，通过 newman 生成 HTML/JSON 报告；补充设计用例先纳入测试用例表，后续再加入自动化回归集合。"),
     ]:
         add_heading(doc, heading, 3)
         add_para(doc, text)
 
     add_heading(doc, "5 测试进度", 1)
     add_heading(doc, "5.1 测试进度回顾", 2)
-    add_para(doc, "本次测试由个人独立完成，2026.6.18 完成需求分析、方案、用例、执行、缺陷登记和总结。核心用例执行率 100%，测试完成度按本轮范围计为 100%。")
+    add_para(doc, "本次测试由个人独立完成，2026.6.18 完成需求分析、方案、用例、执行、缺陷登记和总结。本轮核心子集用例执行率 100%，测试完成度按本轮范围计为 100%。")
     add_table(
         doc,
         ["测试阶段", "时间安排", "参与人员", "测试工作内容安排"],
         [
             ("需求分析", "19:00-19:30", AUTHOR, "分析 RhizoDelta 系统背景、模块和测试边界"),
             ("测试方案", "19:30-20:00", AUTHOR, "按模板填写测试方案"),
-            ("测试用例", "20:00-20:40", AUTHOR, "编写 20 条用例，覆盖认证、用户资料、图谱查询和登出收尾"),
+            ("测试用例", "20:00-20:40", AUTHOR, f"编写 {case_total()} 条用例，覆盖认证、用户资料、图谱查询和登出收尾；其中 {supplement_case_total()} 条为补充设计"),
             ("用例执行", "20:40-21:10", AUTHOR, "运行 Postman/newman，生成 HTML/JSON 报告与截图"),
             ("缺陷登记", "21:10-21:25", AUTHOR, "记录 BUG-001、BUG-002，并给出严重程度与建议"),
             ("总结提交", "21:25-21:45", AUTHOR, "汇总用例、缺陷、结论和后续建议"),
@@ -482,9 +844,9 @@ def build_summary(template_docx: Path, output: Path) -> None:
     )
     add_heading(doc, "5.2 测试进度总结", 2)
     for text in [
-        "本次测试总共用时约 2.75 小时，本轮范围内所有测试用例全部执行完成。",
-        "总共编写测试用例 20 个，执行 20 个，通过 20 个；其中 1 条用例记录 HTTP 语义缺陷观察。",
-        "Postman/newman 共执行 20 个请求，58 条断言，通过 57 条，失败 1 条；失败断言对应 BUG-001，属于预期暴露缺陷。",
+        f"本次测试总共用时约 2.75 小时，本轮已实测核心子集 {executed_case_total()} 条用例全部执行完成，并补充 {supplement_case_total()} 条后续回归设计用例。",
+        f"总共编写测试用例 {case_total()} 个，执行 {executed_case_total()} 个，通过 {executed_case_total()} 个；其中 1 条用例记录 HTTP 语义缺陷观察。",
+        f"Postman/newman 共执行 {POSTMAN_CASE_TOTAL} 个请求，{POSTMAN_ASSERTION_TOTAL} 条断言，通过 {POSTMAN_ASSERTION_TOTAL} 条；BUG-001 作为已知缺陷观察记录，不让验收版报告失败。",
         "发现缺陷总数 2 个，严重 0 个，很高 0 个，高 0 个，中 0 个，低 2 个。",
         "完成《测试方案》《测试用例》《Bug缺陷报告清单》《接口测试-Postman》《测试总结报告》及课程考查报告。",
     ]:
@@ -494,7 +856,7 @@ def build_summary(template_docx: Path, output: Path) -> None:
     add_table(
         doc,
         ["功能模块", "测试用例总数", "用例编写人", "执行人"],
-        [(module, count, AUTHOR, AUTHOR) for module, count in CASE_COUNTS] + [("用例合计（个）", 20, AUTHOR, AUTHOR)],
+        [(module, count, AUTHOR, AUTHOR) for module, count in case_counts()] + [("用例合计（个）", case_total(), AUTHOR, AUTHOR), ("其中已实测（个）", executed_case_total(), AUTHOR, AUTHOR), ("其中补充设计（个）", supplement_case_total(), AUTHOR, AUTHOR)],
     )
 
     add_heading(doc, "7 缺陷分析", 1)
@@ -509,78 +871,119 @@ def build_summary(template_docx: Path, output: Path) -> None:
 
     add_heading(doc, "8 测试结论", 1)
     for text in [
-        "本轮测试范围内，认证授权、用户资料与社交、图谱查询、登出与 token 吊销等核心功能均能正常工作。",
+        "本轮测试范围内，认证授权、用户资料基础接口、图谱查询基础接口、登出与 token 吊销等核心子集功能均能正常工作。",
         "系统鉴权约束有效：无 token、伪造 token、登出后旧 token 均被拒绝；登录错误提示不泄露账号是否存在，安全性设计较好。",
         "接口统一响应包整体稳定，请求/响应字段以 snake_case 为主，便于前后端对接和 Postman 断言。",
-        "当前仅发现 2 个低危缺陷，不影响核心流程验收；建议修复后补充发帖异步一致性、头像上传、治理决策、SSE 冒烟和性能/回归测试。",
-        "综合判断：RhizoDelta 在本轮所测核心模块上达到课程作业验收质量，可以作为软件测试技术课程的被测系统提交。",
+        "当前仅发现 2 个低危缺陷，不影响本轮核心子集流程验收；建议修复后补充发帖异步一致性、节点关联、头像上传、关注/拉黑、治理决策、SSE 冒烟和性能/回归测试。",
+        "综合判断：RhizoDelta 在本轮所测核心子集上达到课程作业验收质量，可以作为软件测试技术课程的被测系统提交。",
     ]:
         add_para(doc, f"    {text}")
     doc.save(output)
 
 
-def build_cases_xlsx(template_xlsx: Path, output: Path) -> None:
-    shutil.copy2(template_xlsx, output)
-    wb = load_workbook(output)
-    for sheet in list(wb.worksheets):
-        wb.remove(sheet)
-    ws = wb.create_sheet("测试用例")
+def xls_style(*, bold: bool = False, fill: int | None = None) -> xlwt.XFStyle:
+    style = xlwt.XFStyle()
+    font = xlwt.Font()
+    font.name = "宋体"
+    font.bold = bold
+    style.font = font
+    alignment = xlwt.Alignment()
+    alignment.wrap = 1
+    alignment.vert = xlwt.Alignment.VERT_TOP
+    style.alignment = alignment
+    borders = xlwt.Borders()
+    borders.left = borders.right = borders.top = borders.bottom = xlwt.Borders.THIN
+    style.borders = borders
+    if fill is not None:
+        pattern = xlwt.Pattern()
+        pattern.pattern = xlwt.Pattern.SOLID_PATTERN
+        pattern.pattern_fore_colour = fill
+        style.pattern = pattern
+    return style
 
+
+XLS_NORMAL = xls_style()
+XLS_HEADER = xls_style(bold=True, fill=22)
+XLS_SECTION = xls_style(bold=True, fill=42)
+XLS_TITLE = xls_style(bold=True, fill=43)
+
+
+def write_xls_rows(ws, rows: list[list], widths: list[int], *, header_rows: set[int] | None = None) -> None:
+    header_rows = header_rows or set()
+    for col_idx, width in enumerate(widths):
+        ws.col(col_idx).width = width * 256
+    for row_idx, row in enumerate(rows):
+        non_empty = [cell for cell in row if cell not in (None, "")]
+        is_section = len(non_empty) == 1 and isinstance(non_empty[0], str) and "模块" in non_empty[0]
+        is_title = len(non_empty) == 1 and isinstance(non_empty[0], str) and "RhizoDelta" in non_empty[0]
+        style = XLS_HEADER if row_idx in header_rows else XLS_SECTION if is_section else XLS_TITLE if is_title else XLS_NORMAL
+        max_lines = 1
+        for col_idx, value in enumerate(row):
+            text = "" if value is None else value
+            ws.write(row_idx, col_idx, text, style)
+            max_lines = max(max_lines, str(text).count("\n") + max(1, len(str(text)) // max(12, widths[min(col_idx, len(widths) - 1)])))
+        ws.row(row_idx).height_mismatch = True
+        ws.row(row_idx).height = min(2200, max(320, max_lines * 260))
+
+
+def build_cases_xls(output: Path) -> None:
+    wb = xlwt.Workbook(encoding="utf-8")
+    ws = wb.add_sheet("测试用例", cell_overwrite_ok=True)
     rows = [
         ["模块名称", "用例个数（个）"],
-        *CASE_COUNTS,
-        ["合计（个）", 20],
+        *case_counts(),
+        ["合计（个）", case_total()],
+        ["其中已实测（个）", executed_case_total()],
+        ["其中补充设计（个）", supplement_case_total()],
         [],
         ["RhizoDelta 图谱化非线性讨论系统测试用例"],
         [],
         ["测试用例编号", "测试项目", "测试标题", "重要级别", "预置条件", "输入", "执行步骤", "预期输出", "实际输出", "测试结果"],
     ]
-    for row in rows:
-        ws.append(list(row))
+    case_header_row = len(rows) - 1
+
     grouped: dict[str, list[tuple[str, ...]]] = {}
     for case in CASES:
         grouped.setdefault(case[1], []).append(case)
-    order = ["认证授权", "用户资料与社交", "图谱查询", "认证收尾"]
     section_idx = 1
-    for module in order:
+    for module in CASE_MODULE_ORDER:
         module_cases = grouped[module]
-        ws.append([f"{section_idx}、{module}模块（测试用例个数：{len(module_cases)}个）"])
+        rows.append([f"{section_idx}、{module}模块（测试用例个数：{len(module_cases)}个）"])
         for case in module_cases:
-            ws.append(list(case))
+            rows.append(list(case))
         section_idx += 1
+    write_xls_rows(ws, rows, [20, 18, 30, 12, 28, 54, 42, 52, 46, 20], header_rows={0, case_header_row})
 
-    widths = [20, 18, 28, 12, 26, 34, 42, 48, 46, 18]
-    for idx, width in enumerate(widths, 1):
-        ws.column_dimensions[chr(64 + idx)].width = width
-    for row in ws.iter_rows():
-        for cell in row:
-            cell.alignment = Alignment(wrap_text=True, vertical="top")
+    eq = wb.add_sheet("等价类划分", cell_overwrite_ok=True)
+    eq_rows = [["输入条件编号", "输入对象/参数", "有效等价类", "无效等价类", "边界值/代表值", "覆盖用例", "设计方法"]]
+    for row in EQUIVALENCE_CLASSES:
+        eq_rows.append(list(row))
+    write_xls_rows(eq, eq_rows, [18, 22, 42, 46, 36, 52, 28], header_rows={0})
+
+    method = wb.add_sheet("方法覆盖", cell_overwrite_ok=True)
+    method_rows = [["方法", "本项目中的使用方式", "对应证据"]]
+    for row in METHOD_COVERAGE:
+        method_rows.append(list(row))
+    method_rows.append([])
+    method_rows.append(["统计口径", f"测试用例总数 {case_total()} 条；已实测 {executed_case_total()} 条；补充设计 {supplement_case_total()} 条；Postman 自动化 {POSTMAN_CASE_TOTAL} 条请求、{POSTMAN_ASSERTION_TOTAL} 条断言。", "README 与 Postman 报告"])
+    write_xls_rows(method, method_rows, [20, 62, 62], header_rows={0})
+
     wb.save(output)
 
 
-def build_bugs_xlsx(template_xlsx: Path, output: Path) -> None:
-    shutil.copy2(template_xlsx, output)
-    wb = load_workbook(output)
-    for sheet in list(wb.worksheets):
-        wb.remove(sheet)
-    ws = wb.create_sheet("Bug")
-
-    ws.append(["模块名称", "按BUG严重程度（单位：个）", "", "", "", "", "总计（单位：个）"])
-    ws.append(["", "严重", "很高", "高", "中", "低", ""])
+def build_bugs_xls(output: Path) -> None:
+    wb = xlwt.Workbook(encoding="utf-8")
+    summary = wb.add_sheet("缺陷汇总", cell_overwrite_ok=True)
+    summary_rows = [["模块名称", "严重", "很高", "高", "中", "低", "合计"]]
     for row in BUG_SUMMARY:
-        ws.append(list(row))
-    ws.append([])
-    ws.append(["RhizoDelta 图谱化非线性讨论系统缺陷报告"])
-    ws.append(["缺陷编号", "模块名称", "页面/窗口", "摘要", "描述", "缺陷严重程度", "提交人", "附件说明"])
-    for row in BUGS:
-        ws.append(list(row))
+        summary_rows.append(list(row))
+    write_xls_rows(summary, summary_rows, [18, 12, 12, 12, 12, 12, 14], header_rows={0})
 
-    widths = [14, 18, 28, 38, 78, 16, 14, 42]
-    for idx, width in enumerate(widths, 1):
-        ws.column_dimensions[chr(64 + idx)].width = width
-    for row in ws.iter_rows():
-        for cell in row:
-            cell.alignment = Alignment(wrap_text=True, vertical="top")
+    detail = wb.add_sheet("缺陷明细", cell_overwrite_ok=True)
+    detail_rows = [["RhizoDelta 图谱化非线性讨论系统缺陷报告"], ["缺陷编号", "模块名称", "页面/窗口", "摘要", "描述", "缺陷严重程度", "提交人", "附件说明"]]
+    for row in BUGS:
+        detail_rows.append(list(row))
+    write_xls_rows(detail, detail_rows, [14, 18, 28, 38, 78, 16, 14, 42], header_rows={1})
     wb.save(output)
 
 
@@ -657,23 +1060,23 @@ def build_course_report(template_docx: Path, output: Path) -> None:
     cell = table.cell(3, 1)
     set_cell_text(
         cell,
-        "1. 选定 RhizoDelta 作为被测系统，梳理认证授权、用户资料与社交、发帖与关联、图谱查询、治理决策与 AI 实时能力等模块。\n"
+        "1. 选定 RhizoDelta 作为被测系统，梳理认证授权、用户资料与社交、发帖与关联、图谱查询、治理决策与 AI 实时能力等模块；本轮结论限定在已实测核心子集。\n"
         "2. 使用原始模板副本填写《测试方案》《测试用例》《Bug缺陷报告清单》《测试总结报告》。\n"
-        "3. 选择 Postman 作为专项测试工具，构建 20 条接口用例并通过 newman 生成测试报告。\n"
-        "4. 本次实测执行 20 个请求、58 条断言，通过 57 条，唯一失败断言对应 BUG-001；登记 2 个低危缺陷。\n"
+        f"3. 选择 Postman 作为专项测试工具，构建 {POSTMAN_CASE_TOTAL} 条接口用例并通过 newman 生成测试报告；同时补充 {supplement_case_total()} 条后续回归设计用例。\n"
+        f"4. 本次实测执行 {POSTMAN_CASE_TOTAL} 个请求、{POSTMAN_ASSERTION_TOTAL} 条断言，验收版 {POSTMAN_ASSERTION_TOTAL} 条全部通过；BUG-001 作为已知缺陷观察登记，合计 2 个低危缺陷。\n"
         "5. 自己所测项目界面截图及成果截图如下：",
     )
     for image, caption in [
         ("03_login_page.png", "图 1 登录页：JWT 认证入口，对应认证授权模块。"),
         ("04_home_graph.png", "图 2 登录后图谱讨论主界面：左侧话题流、中间讨论节点、右侧质量分布统计。"),
         ("05_profile_settings.png", "图 3 个人设置页：头像、用户名和显示名编辑，对应用户资料模块。"),
-        ("01_newman_report.png", "图 4 newman 接口测试报告：20 请求、58 断言、1 个预期失败断言。"),
+        ("01_newman_report.png", f"图 4 newman 接口测试报告：{POSTMAN_CASE_TOTAL} 请求、{POSTMAN_ASSERTION_TOTAL} 断言，验收版全部通过。"),
         ("02_api_evidence.png", "图 5 接口请求响应证据：登录、查当前用户、登出吊销和重复注册缺陷观察。"),
     ]:
         add_image_to_cell(cell, GENERATED / "images" / image, caption)
     set_cell_text(
         table.cell(4, 1),
-        "本次测试从模板要求出发，围绕一个真实可运行的 B/S 系统完成了需求理解、测试计划、用例设计、接口自动化执行、缺陷登记和质量总结。通过认证、用户资料、图谱查询、登出吊销等 20 条用例，我进一步理解了黑盒测试中等价类、边界值、错误推测、因果图和场景法的组合使用方式。Postman/newman 的自动化执行让测试结果具备可复现性，也暴露出重复注册状态码和时间字段格式一致性这类接口契约问题。综合来看，RhizoDelta 核心功能稳定，鉴权和错误处理整体可靠，后续应继续补充发帖异步一致性、头像上传、治理决策、SSE 和性能测试。",
+        f"本次测试从模板要求出发，围绕一个真实可运行的 B/S 系统完成了需求理解、测试计划、用例设计、接口自动化执行、缺陷登记和质量总结。通过认证、用户资料基础接口、图谱查询基础接口、登出吊销等 {executed_case_total()} 条已实测用例，以及 {supplement_case_total()} 条后续回归设计用例，我进一步理解了黑盒测试中等价类、边界值、错误推测、因果图和场景法的组合使用方式。Postman/newman 的自动化执行让测试结果具备可复现性，也暴露出重复注册状态码和时间字段格式一致性这类接口契约问题。综合来看，RhizoDelta 本轮核心子集功能稳定，鉴权和错误处理整体可靠，后续应继续补充发帖异步一致性、头像上传、治理决策、SSE 和性能测试。",
     )
     doc.save(output)
 
@@ -682,24 +1085,16 @@ def main() -> None:
     DELIVERABLES.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="st-template-build-") as tmp:
         tmpdir = Path(tmp)
-        plan_docx_template = convert_template(PLAN_TEMPLATE, tmpdir, "docx")
-        summary_docx_template = convert_template(SUMMARY_TEMPLATE, tmpdir, "docx")
-        report_docx_template = convert_template(REPORT_TEMPLATE, tmpdir, "docx")
-        case_xlsx_template = convert_template(CASE_TEMPLATE, tmpdir, "xlsx")
-        bug_xlsx_template = convert_template(BUG_TEMPLATE, tmpdir, "xlsx")
+        tmpdir.chmod(0o777)
+        plan_docx_template = tmpdir / "blank-plan.docx"
+        summary_docx_template = tmpdir / "blank-summary.docx"
+        Document().save(plan_docx_template)
+        Document().save(summary_docx_template)
 
         build_plan(plan_docx_template, DELIVERABLES / "1-测试方案.docx")
-        build_cases_xlsx(case_xlsx_template, DELIVERABLES / "2-测试用例.xlsx")
-        build_bugs_xlsx(bug_xlsx_template, DELIVERABLES / "3-Bug缺陷报告清单.xlsx")
+        build_cases_xls(DELIVERABLES / "2-测试用例.xls")
+        build_bugs_xls(DELIVERABLES / "3-Bug缺陷报告清单.xls")
         build_summary(summary_docx_template, DELIVERABLES / "5-测试总结报告.docx")
-        build_course_report(report_docx_template, ROOT / "《软件测试技术》考查报告.docx")
-
-    # Create legacy-format copies for instructors who expect the original template extensions.
-    run_soffice(["--convert-to", "doc", "--outdir", str(DELIVERABLES), str(DELIVERABLES / "1-测试方案.docx")])
-    run_soffice(["--convert-to", "xls", "--outdir", str(DELIVERABLES), str(DELIVERABLES / "2-测试用例.xlsx")])
-    run_soffice(["--convert-to", "xls", "--outdir", str(DELIVERABLES), str(DELIVERABLES / "3-Bug缺陷报告清单.xlsx")])
-    run_soffice(["--convert-to", "doc", "--outdir", str(DELIVERABLES), str(DELIVERABLES / "5-测试总结报告.docx")])
-    run_soffice(["--convert-to", "doc", "--outdir", str(ROOT), str(ROOT / "《软件测试技术》考查报告.docx")])
 
 
 if __name__ == "__main__":
