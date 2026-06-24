@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>物流管理系统</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div th:replace="~{fragments/layout :: topbar('dashboard')}"></div>
+<main class="page">
+    <section class="page-head">
+        <div>
+            <h1>物流业务工作台</h1>
+            <p>查看客户、车辆、司机和运单的基础运营数据。</p>
+        </div>
+        <a class="btn primary" th:href="@{/shipments/new}">新增运单</a>
+    </section>
+
+    <section class="stats-grid">
+        <article class="stat-card" th:each="item : ${overview}">
+            <span th:text="${item.key}">指标</span>
+            <strong th:text="${item.value}">0</strong>
+        </article>
+    </section>
+
+    <section class="panel">
+        <div class="panel-title">
+            <h2>运单状态分布</h2>
+            <a th:href="@{/shipments}">查看运单</a>
+        </div>
+        <div class="status-list">
+            <div class="status-row" th:each="item : ${statusCounts}">
+                <span th:text="${item.key}">状态</span>
+                <strong th:text="${item.value}">0</strong>
+            </div>
+        </div>
+    </section>
+</main>
+<div th:replace="~{fragments/layout :: footer}"></div>
+</body>
+</html>

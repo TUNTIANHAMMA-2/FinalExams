@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>基础资料 - 物流管理系统</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div th:replace="~{fragments/layout :: topbar('basic')}"></div>
+<main class="page">
+    <section class="page-head compact">
+        <div>
+            <h1>基础资料</h1>
+            <p>演示数据由 `sql/data.sql` 初始化，用于运单表单下拉选择。</p>
+        </div>
+    </section>
+
+    <section class="three-column">
+        <article class="panel">
+            <h2>客户</h2>
+            <table>
+                <thead><tr><th>名称</th><th>联系人</th><th>电话</th></tr></thead>
+                <tbody>
+                <tr th:each="customer : ${customers}">
+                    <td th:text="${customer.name}">客户</td>
+                    <td th:text="${customer.contactPerson}">联系人</td>
+                    <td th:text="${customer.phone}">电话</td>
+                </tr>
+                </tbody>
+            </table>
+        </article>
+        <article class="panel">
+            <h2>司机</h2>
+            <table>
+                <thead><tr><th>姓名</th><th>电话</th><th>状态</th></tr></thead>
+                <tbody>
+                <tr th:each="driver : ${drivers}">
+                    <td th:text="${driver.name}">司机</td>
+                    <td th:text="${driver.phone}">电话</td>
+                    <td th:text="${driver.status}">状态</td>
+                </tr>
+                </tbody>
+            </table>
+        </article>
+        <article class="panel">
+            <h2>车辆</h2>
+            <table>
+                <thead><tr><th>车牌</th><th>车型</th><th>状态</th></tr></thead>
+                <tbody>
+                <tr th:each="vehicle : ${vehicles}">
+                    <td th:text="${vehicle.plateNo}">车牌</td>
+                    <td th:text="${vehicle.vehicleType}">车型</td>
+                    <td th:text="${vehicle.status}">状态</td>
+                </tr>
+                </tbody>
+            </table>
+        </article>
+    </section>
+</main>
+<div th:replace="~{fragments/layout :: footer}"></div>
+</body>
+</html>

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>运单管理 - 物流管理系统</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div th:replace="~{fragments/layout :: topbar('shipments')}"></div>
+<main class="page">
+    <section class="page-head compact">
+        <div>
+            <h1>运单管理</h1>
+            <p>完成物流运单的查询、新增、编辑和删除。</p>
+        </div>
+        <a class="btn primary" th:href="@{/shipments/new}">新增运单</a>
+    </section>
+
+    <div class="alert" th:if="${message}" th:text="${message}"></div>
+
+    <section class="panel">
+        <form class="toolbar" method="get" th:action="@{/shipments}">
+            <input type="search" name="keyword" placeholder="运单号、货物、客户" th:value="${keyword}">
+            <select name="status">
+                <option value="">全部状态</option>
+                <option th:each="status : ${statuses}"
+                        th:value="${status.code}"
+                        th:selected="${status.code == selectedStatus}"
+                        th:text="${status.label}">状态</option>
+            </select>
+            <button class="btn" type="submit">查询</button>
+        </form>
+
+        <table class="data-table">
+            <thead>
+            <tr>
+                <th>运单号</th>
+                <th>客户</th>
+                <th>货物</th>
+                <th>线路</th>
+                <th>司机/车辆</th>
+                <th>运费</th>
+                <th>状态</th>
+                <th>操作</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="shipment : ${shipments}">
+                <td th:text="${shipment.shipmentNo}">YD202406240001</td>
+                <td th:text="${shipment.customerName}">客户</td>
+                <td>
+                    <strong th:text="${shipment.cargoName}">货物</strong>
+                    <small th:text="${shipment.cargoWeight + ' 吨'}">重量</small>
+                </td>
+                <td>
+                    <span th:text="${shipment.originAddress}">起点</span>
+                    <small th:text="${shipment.destinationAddress}">终点</small>
+                </td>
+                <td>
+                    <span th:text="${shipment.driverName}">司机</span>
+                    <small th:text="${shipment.vehiclePlateNo}">车辆</small>
+                </td>
+                <td th:text="${'￥' + shipment.freightFee}">￥0</td>
+                <td><span class="badge" th:text="${shipment.status}">CREATED</span></td>
+                <td class="actions">
+                    <a class="btn small" th:href="@{'/shipments/' + ${shipment.id} + '/edit'}">编辑</a>
+                    <form method="post" th:action="@{'/shipments/' + ${shipment.id} + '/delete'}">
+                        <button class="btn small danger" type="submit">删除</button>
+                    </form>
+                </td>
+            </tr>
+            <tr th:if="${#lists.isEmpty(shipments)}">
+                <td colspan="8" class="empty">暂无运单数据</td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+</main>
+<div th:replace="~{fragments/layout :: footer}"></div>
+</body>
+</html>

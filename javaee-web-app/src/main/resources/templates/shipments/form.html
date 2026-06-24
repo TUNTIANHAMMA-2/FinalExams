@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${title} + ' - 物流管理系统'">运单表单</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div th:replace="~{fragments/layout :: topbar('shipments')}"></div>
+<main class="page narrow">
+    <section class="page-head compact">
+        <div>
+            <h1 th:text="${title}">运单表单</h1>
+            <p>填写运输客户、司机车辆、货物和费用信息。</p>
+        </div>
+        <a class="btn" th:href="@{/shipments}">返回列表</a>
+    </section>
+
+    <section class="panel">
+        <form class="form-grid" method="post" th:action="${action}" th:object="${shipment}">
+            <label>
+                客户
+                <select th:field="*{customerId}">
+                    <option value="">请选择客户</option>
+                    <option th:each="customer : ${customers}" th:value="${customer.id}" th:text="${customer.name}">客户</option>
+                </select>
+                <small class="error" th:errors="*{customerId}"></small>
+            </label>
+            <label>
+                司机
+                <select th:field="*{driverId}">
+                    <option value="">请选择司机</option>
+                    <option th:each="driver : ${drivers}" th:value="${driver.id}" th:text="${driver.name + ' - ' + driver.phone}">司机</option>
+                </select>
+                <small class="error" th:errors="*{driverId}"></small>
+            </label>
+            <label>
+                车辆
+                <select th:field="*{vehicleId}">
+                    <option value="">请选择车辆</option>
+                    <option th:each="vehicle : ${vehicles}" th:value="${vehicle.id}" th:text="${vehicle.plateNo + ' - ' + vehicle.vehicleType}">车辆</option>
+                </select>
+                <small class="error" th:errors="*{vehicleId}"></small>
+            </label>
+            <label>
+                状态
+                <select th:field="*{status}">
+                    <option value="">默认待揽收</option>
+                    <option th:each="status : ${statuses}" th:value="${status.code}" th:text="${status.label}">状态</option>
+                </select>
+            </label>
+            <label>
+                起点
+                <input type="text" th:field="*{originAddress}" placeholder="例如：广州白云仓">
+                <small class="error" th:errors="*{originAddress}"></small>
+            </label>
+            <label>
+                终点
+                <input type="text" th:field="*{destinationAddress}" placeholder="例如：深圳南山客户点">
+                <small class="error" th:errors="*{destinationAddress}"></small>
+            </label>
+            <label>
+                货物名称
+                <input type="text" th:field="*{cargoName}" placeholder="例如：电子配件">
+                <small class="error" th:errors="*{cargoName}"></small>
+            </label>
+            <label>
+                货物重量（吨）
+                <input type="number" min="0.01" step="0.01" th:field="*{cargoWeight}">
+                <small class="error" th:errors="*{cargoWeight}"></small>
+            </label>
+            <label>
+                运费（元）
+                <input type="number" min="0" step="0.01" th:field="*{freightFee}">
+                <small class="error" th:errors="*{freightFee}"></small>
+            </label>
+            <label class="wide">
+                备注
+                <textarea rows="4" th:field="*{remark}" placeholder="可填写装卸要求、时效要求等"></textarea>
+            </label>
+            <div class="form-actions wide">
+                <button class="btn primary" type="submit">保存</button>
+                <a class="btn" th:href="@{/shipments}">取消</a>
+            </div>
+        </form>
+    </section>
+</main>
+<div th:replace="~{fragments/layout :: footer}"></div>
+</body>
+</html>

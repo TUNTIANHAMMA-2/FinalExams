@@ -1,31 +1,144 @@
-# JavaEE 企业级 Web 应用开发实战：RhizoDelta 后端方向报告
+# 物流管理系统（JavaEE 课程设计）
 
-本目录是《JavaEE 企业级 Web 应用开发实战》期末课程设计报告。报告基于 RhizoDelta 后端工程整理，侧重 Spring Boot、图数据库、异步任务、认证授权、实时事件和 AI 编排等后端设计。
+这是一个用于期末课程设计提交和答辩演示的 Spring Boot 物流管理系统。项目保留常见 JavaEE 作业需要展示的核心内容：Spring MVC 页面、RESTful 接口、MyBatis-Plus 持久层、MySQL 建表脚本、统一响应封装和事务控制。
 
-## 交付物
+旧版 RhizoDelta 报告资料已归档到：`../archived-projects/javaee-web-app-rhizodelta-report-2026-06-24/`。
 
-| 文件 | 用途 |
-| --- | --- |
-| [JavaEE企业级Web应用开发实战考查方案.docx](./JavaEE企业级Web应用开发实战考查方案.docx) | 课程考查方案 |
-| [JavaEE企业级Web应用开发实战期末课程设计报告.doc](./JavaEE企业级Web应用开发实战期末课程设计报告.doc) | 正式 Word 报告 |
-| [JavaEE企业级Web应用开发实战期末课程设计报告.docx](./JavaEE企业级Web应用开发实战期末课程设计报告.docx) | 正式 Word 报告备份 |
-| [JavaEE企业级Web应用开发实战期末课程设计报告.md](./JavaEE企业级Web应用开发实战期末课程设计报告.md) | 报告内容源文件 |
-| [答辩.md](./答辩.md) | 口头答辩稿 |
-| [docs/](./docs/README.md) | 辅助理解、演示和问答文档 |
+## 技术栈
 
-## 阅读顺序
+- Java 17
+- Spring Boot 3.2.3
+- Spring MVC
+- Thymeleaf
+- MyBatis-Plus
+- MySQL
+- Lombok
+- Bean Validation
+- Spring Boot DevTools
 
-1. [答辩.md](./答辩.md)
-2. [docs/README.md](./docs/README.md)
-3. [docs/project-understanding.md](./docs/project-understanding.md)
-4. [docs/system-design.md](./docs/system-design.md)
-5. [docs/demo-flow.md](./docs/demo-flow.md)
-6. [docs/defense-outline.md](./docs/defense-outline.md)
-7. [docs/defense-qa.md](./docs/defense-qa.md)
+## 功能模块
 
-## 结构说明
+- 工作台：首页展示客户、司机、车辆、运单数量和运单状态统计。
+- 基础资料：展示客户、司机、车辆测试数据。
+- 运单管理：支持查询、新增、编辑、删除物流运单。
+- REST 接口：提供 `/api/shipments` 的 GET、POST、PUT、DELETE 接口。
+- 统一响应：REST 接口统一返回 `code`、`message`、`data` 字段。
+- 事务控制：运单新增、修改、删除方法使用 `@Transactional`。
 
-- `generated/` 保存报告生成过程中的 HTML 等中间文件。
-- `images/` 保存架构图、数据模型图和关键流程图。
-- 考查方案偏向常规 Spring Boot + MyBatis-Plus 单表 CRUD 系统；本报告以 RhizoDelta 真实后端工程为载体，使用 Spring Boot、Spring Data Neo4j、RabbitMQ、Redis、JWT、SSE 等技术。答辩时应说明这种课程要求和真实工程实现之间的对应关系。
+## 运行步骤
 
+1. 创建数据库并导入表结构：
+
+   ```bash
+   mysql -uroot -p < sql/schema.sql
+   ```
+
+2. 导入测试数据：
+
+   ```bash
+   mysql -uroot -p < sql/data.sql
+   ```
+
+3. 按本机 MySQL 账号修改 `src/main/resources/application-dev.yml`：
+
+   ```yaml
+   spring:
+     datasource:
+       username: root
+       password: root
+   ```
+
+4. 启动项目：
+
+   ```bash
+   mvn spring-boot:run
+   ```
+
+5. 浏览器访问：
+
+   ```text
+   http://localhost:8080
+   ```
+
+## REST 接口示例
+
+查询运单：
+
+```bash
+curl "http://localhost:8080/api/shipments?status=CREATED"
+```
+
+新增运单：
+
+```bash
+curl -X POST "http://localhost:8080/api/shipments" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customerId": 1,
+    "driverId": 1,
+    "vehicleId": 1,
+    "originAddress": "广州白云仓",
+    "destinationAddress": "深圳南山科技园",
+    "cargoName": "电子配件",
+    "cargoWeight": 2.5,
+    "freightFee": 1500,
+    "status": "CREATED",
+    "remark": "接口测试新增"
+  }'
+```
+
+修改运单：
+
+```bash
+curl -X PUT "http://localhost:8080/api/shipments/1" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customerId": 1,
+    "driverId": 2,
+    "vehicleId": 2,
+    "originAddress": "广州白云仓",
+    "destinationAddress": "深圳南山科技园",
+    "cargoName": "电子配件",
+    "cargoWeight": 3.0,
+    "freightFee": 1800,
+    "status": "IN_TRANSIT",
+    "remark": "已安排运输"
+  }'
+```
+
+删除运单：
+
+```bash
+curl -X DELETE "http://localhost:8080/api/shipments/1"
+```
+
+## 项目结构
+
+```text
+src/main/java/com/finalexams/logistics
+├── common        # 统一响应和异常处理
+├── controller    # 页面 Controller 和 REST Controller
+├── entity        # MyBatis-Plus 实体类
+├── mapper        # Mapper 接口
+└── service       # 业务服务和事务控制
+
+src/main/resources
+├── application.yml
+├── application-dev.yml
+├── application-prod.yml
+├── static/css/app.css
+└── templates     # Thymeleaf 页面
+
+sql
+├── schema.sql    # 建表脚本
+└── data.sql      # 测试数据
+```
+
+## 答辩演示建议
+
+1. 展示 `application-dev.yml`，说明端口、数据源和 MyBatis-Plus SQL 日志配置。
+2. 展示 `sql/schema.sql`，说明客户、司机、车辆、运单四张表。
+3. 展示 `ShipmentRestController`，说明 RESTful 接口和参数接收方式。
+4. 展示 `ApiResponse`，说明统一响应结构。
+5. 展示 `ShipmentServiceImpl`，说明 `@Transactional` 事务控制。
+6. 启动项目，演示首页统计、运单查询、新增、编辑、删除。

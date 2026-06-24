@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<body>
+<header class="topbar" th:fragment="topbar(active)">
+    <div class="brand">
+        <span class="brand-mark">L</span>
+        <div>
+            <strong>物流管理系统</strong>
+            <small>JavaEE 课程设计</small>
+        </div>
+    </div>
+    <nav>
+        <a th:classappend="${active == 'dashboard'} ? 'active'" th:href="@{/dashboard}">工作台</a>
+        <a th:classappend="${active == 'shipments'} ? 'active'" th:href="@{/shipments}">运单管理</a>
+        <a th:classappend="${active == 'basic'} ? 'active'" th:href="@{/basic-data}">基础资料</a>
+    </nav>
+</header>
+
+<footer class="footer" th:fragment="footer">
+    <span>Spring Boot + Spring MVC + MyBatis-Plus + MySQL + Thymeleaf</span>
+</footer>
+</body>
+</html>
