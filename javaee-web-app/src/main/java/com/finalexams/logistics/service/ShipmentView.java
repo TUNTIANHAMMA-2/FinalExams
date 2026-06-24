@@ -6,6 +6,11 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
+/**
+ * 运单列表视图对象。
+ *
+ * <p>封装关联查询后的展示字段，不直接污染数据库实体类。</p>
+ */
 public class ShipmentView {
 
     private Long id;

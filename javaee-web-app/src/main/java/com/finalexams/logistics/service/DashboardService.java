@@ -15,6 +15,9 @@ import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
+/**
+ * 工作台服务，聚合各业务表数量，给首页统计卡片和状态分布使用。
+ */
 public class DashboardService {
 
     private final CustomerMapper customerMapper;

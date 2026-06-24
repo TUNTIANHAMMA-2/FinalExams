@@ -14,6 +14,9 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+/**
+ * 基础资料服务，为页面下拉框和基础资料页提供客户、司机、车辆列表。
+ */
 public class BasicDataService {
 
     private final CustomerMapper customerMapper;

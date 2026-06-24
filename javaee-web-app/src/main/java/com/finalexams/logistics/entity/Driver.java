@@ -9,6 +9,9 @@ import java.time.LocalDateTime;
 
 @Data
 @TableName("lm_driver")
+/**
+ * 司机实体，对应数据库 lm_driver 表，用于运单派车时选择承运司机。
+ */
 public class Driver {
 
     @TableId

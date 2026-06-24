@@ -8,8 +8,16 @@ import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
 
+/**
+ * 运单 Mapper。
+ *
+ * <p>BaseMapper 负责单表 CRUD，自定义 SQL 负责列表页关联展示。</p>
+ */
 public interface ShipmentMapper extends BaseMapper<Shipment> {
 
+    /**
+     * 运单列表需要显示客户名称、司机姓名和车牌号，因此使用三张基础资料表做 left join。
+     */
     @Select("""
             select s.*, c.name as customer_name, d.name as driver_name, v.plate_no as vehicle_plate_no
             from lm_shipment s

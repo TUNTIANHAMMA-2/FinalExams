@@ -10,6 +10,9 @@ import java.time.LocalDateTime;
 
 @Data
 @TableName("lm_vehicle")
+/**
+ * 车辆实体，对应数据库 lm_vehicle 表，记录车牌、车型和载重等信息。
+ */
 public class Vehicle {
 
     @TableId

@@ -7,6 +7,11 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+/**
+ * REST 接口统一响应对象。
+ *
+ * <p>接口统一返回 code、message、data 三个字段，便于前端或接口测试工具处理结果。</p>
+ */
 public class ApiResponse<T> {
 
     private int code;

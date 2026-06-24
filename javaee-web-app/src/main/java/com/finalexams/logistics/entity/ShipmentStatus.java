@@ -6,6 +6,9 @@ import java.util.Arrays;
 import java.util.List;
 
 @Getter
+/**
+ * 运单状态枚举，集中维护状态编码和页面显示文案，避免散落硬编码。
+ */
 public enum ShipmentStatus {
     CREATED("CREATED", "待揽收"),
     IN_TRANSIT("IN_TRANSIT", "运输中"),

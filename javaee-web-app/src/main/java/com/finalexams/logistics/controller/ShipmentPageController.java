@@ -20,12 +20,20 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 @Controller
 @RequestMapping("/shipments")
 @RequiredArgsConstructor
+/**
+ * 运单页面控制器。
+ *
+ * <p>负责 Thymeleaf 页面跳转和表单提交处理。</p>
+ */
 public class ShipmentPageController {
 
     private final ShipmentService shipmentService;
     private final BasicDataService basicDataService;
 
     @GetMapping
+    /**
+     * 列表页支持关键字和状态筛选，查询结果由 Service 层统一返回。
+     */
     public String list(@RequestParam(required = false) String keyword,
                        @RequestParam(required = false) String status,
                        Model model) {
@@ -44,6 +52,9 @@ public class ShipmentPageController {
     }
 
     @PostMapping
+    /**
+     * 表单提交时先做参数校验，失败则回到表单页并显示错误信息。
+     */
     public String create(@Valid @ModelAttribute Shipment shipment,
                          BindingResult bindingResult,
                          Model model,
@@ -65,6 +76,9 @@ public class ShipmentPageController {
     }
 
     @PostMapping("/{id}")
+    /**
+     * HTML 表单不直接使用 PUT，这里用 POST 处理编辑提交，REST 接口仍保留 PUT。
+     */
     public String update(@PathVariable Long id,
                          @Valid @ModelAttribute Shipment shipment,
                          BindingResult bindingResult,
@@ -88,6 +102,7 @@ public class ShipmentPageController {
     }
 
     private void prepareForm(Model model, String title, String action) {
+        // 表单需要客户、司机、车辆和状态下拉数据，每次渲染前统一准备。
         model.addAttribute("title", title);
         model.addAttribute("action", action);
         model.addAttribute("customers", basicDataService.customers());

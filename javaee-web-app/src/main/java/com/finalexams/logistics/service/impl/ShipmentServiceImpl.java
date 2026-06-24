@@ -15,6 +15,11 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+/**
+ * 运单业务实现。
+ *
+ * <p>集中处理运单号生成、状态校验、事务和数据库写入。</p>
+ */
 public class ShipmentServiceImpl implements ShipmentService {
 
     private final ShipmentMapper shipmentMapper;
@@ -35,6 +40,9 @@ public class ShipmentServiceImpl implements ShipmentService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    /**
+     * 新增运单涉及核心业务表写入，使用事务保证异常时回滚。
+     */
     public Shipment create(Shipment shipment) {
         LocalDateTime now = LocalDateTime.now();
         shipment.setId(null);
@@ -50,6 +58,9 @@ public class ShipmentServiceImpl implements ShipmentService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    /**
+     * 修改运单时先读取原记录，再覆盖允许编辑的业务字段。
+     */
     public Shipment update(Long id, Shipment form) {
         Shipment existing = getById(id);
         normalizeStatus(form);
@@ -71,12 +82,16 @@ public class ShipmentServiceImpl implements ShipmentService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    /**
+     * 删除前先检查记录存在；实际删除由 @TableLogic 转为逻辑删除。
+     */
     public void delete(Long id) {
         getById(id);
         shipmentMapper.deleteById(id);
     }
 
     private String generateShipmentNo(LocalDateTime now) {
+        // 使用时间戳生成运单号，便于课程现场新增时观察结果。
         return "YD" + now.format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
     }
 

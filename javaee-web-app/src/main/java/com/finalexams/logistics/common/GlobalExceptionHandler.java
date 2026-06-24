@@ -8,6 +8,11 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
+/**
+ * 全局异常处理器。
+ *
+ * <p>把业务异常和参数校验异常转换成统一 JSON 响应。</p>
+ */
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(IllegalArgumentException.class)

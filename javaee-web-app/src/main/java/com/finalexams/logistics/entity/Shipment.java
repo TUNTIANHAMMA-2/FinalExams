@@ -13,6 +13,9 @@ import java.time.LocalDateTime;
 
 @Data
 @TableName("lm_shipment")
+/**
+ * 运单实体，是系统核心业务对象，对应数据库 lm_shipment 表。
+ */
 public class Shipment {
 
     @TableId
@@ -20,6 +23,9 @@ public class Shipment {
 
     private String shipmentNo;
 
+    /**
+     * 通过客户、司机、车辆 ID 建立运单与基础资料之间的关联。
+     */
     @NotNull(message = "不能为空")
     private Long customerId;
 
@@ -53,6 +59,10 @@ public class Shipment {
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
+
+    /**
+     * 逻辑删除字段：删除运单时保留数据记录，便于课程中说明 MyBatis-Plus 特性。
+     */
     @TableLogic
     private Integer deleted;
 }
